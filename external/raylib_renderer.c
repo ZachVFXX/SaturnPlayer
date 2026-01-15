@@ -1,3 +1,4 @@
+#include "limits.h"
 #include "raylib.h"
 #include "raymath.h"
 #include "stdint.h"
@@ -8,6 +9,8 @@
 
 #define CLAY_RECTANGLE_TO_RAYLIB_RECTANGLE(rectangle) (Rectangle) { .x = rectangle.x, .y = rectangle.y, .width = rectangle.width, .height = rectangle.height }
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
+#define CONTROL_CHAR_AMOUNT 32
+
 
 Camera Raylib_camera;
 
@@ -81,75 +84,125 @@ Ray GetScreenToWorldPointWithZDistance(Vector2 position, Camera camera, int scre
     return ray;
 }
 
-static inline Clay_Dimensions
-Raylib_MeasureText(Clay_StringSlice text,
-                   Clay_TextElementConfig *config,
-                   void *userData)
-{
+typedef int Clay_Raylib_GlyphCodename;
+static inline Clay_Raylib_GlyphCodename Raylib_MeasureUtf8Glyph(Clay_StringSlice text, int* index) {
+    int i = *index;
+    unsigned char c = (unsigned char)text.chars[i];
+
+    // Single byte (ASCII)
+    if (c < 0x80) {
+        *index = i + 1;
+        return (int)c;
+    }
+
+    // Invalid UTF-8 start byte
+    if ((c & 0xC0) == 0x80) {
+        *index = i + 1;
+        return 0x3F; // Return '?' for invalid sequences
+    }
+
+    int codepoint = 0;
+    int bytes = 0;
+
+    // 2-byte sequence
+    if ((c & 0xE0) == 0xC0) {
+        bytes = 2;
+        codepoint = c & 0x1F;
+    }
+    // 3-byte sequence
+    else if ((c & 0xF0) == 0xE0) {
+        bytes = 3;
+        codepoint = c & 0x0F;
+    }
+    // 4-byte sequence
+    else if ((c & 0xF8) == 0xF0) {
+        bytes = 4;
+        codepoint = c & 0x07;
+    }
+    else {
+        *index = i + 1;
+        return 0x3F; // Return '?' for invalid sequences
+    }
+
+    // Check if we have enough bytes
+    if (i + bytes > text.length) {
+        *index = text.length;
+        return 0x3F;
+    }
+
+    // Decode continuation bytes
+    for (int j = 1; j < bytes; j++) {
+        unsigned char cont = (unsigned char)text.chars[i + j];
+        if ((cont & 0xC0) != 0x80) {
+            *index = i + j;
+            return 0x3F; // Invalid continuation byte
+        }
+        codepoint = (codepoint << 6) | (cont & 0x3F);
+    }
+
+    *index = i + bytes;
+    return codepoint;
+}
+
+static inline Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData) {
     Clay_Dimensions textSize = { 0 };
-
-    Font *fonts = (Font *)userData;
-    Font font = fonts[config->fontId];
-
-    if (!font.glyphs || font.glyphCount <= 0) {
-        font = GetFontDefault();
-    }
-
-    const float scale = config->fontSize / (float)font.baseSize;
-
-    float lineWidth = 0.0f;
-    float maxWidth  = 0.0f;
-
-    int lineCharCount = 0;
+    float maxTextWidth = 0.0f;
+    float lineTextWidth = 0;
     int maxLineCharCount = 0;
+    int lineCharCount = 0;
+    float textHeight = config->fontSize;
 
-    for (int i = 0; i < text.length; i++)
-    {
-        unsigned char c = (unsigned char)text.chars[i];
+    Font* fonts = (Font*)userData;
+    Font fontToUse = fonts[config->fontId];
 
-        /* Ignore UTF-8 continuation bytes (10xxxxxx) */
-        if ((c & 0xC0) == 0x80) {
-            continue;
-        }
-
-        /* New line */
-        if (c == '\n') {
-            maxWidth = fmaxf(maxWidth, lineWidth);
-            maxLineCharCount = CLAY__MAX(maxLineCharCount, lineCharCount);
-            lineWidth = 0.0f;
-            lineCharCount = 0;
-            continue;
-        }
-
-        /* Raylib fonts start at ASCII 32 */
-        if (c < 32 || c >= (32 + font.glyphCount)) {
-            continue;
-        }
-
-        int glyphIndex = c - 32;
-        GlyphInfo *glyph = &font.glyphs[glyphIndex];
-
-        float advance =
-            (glyph->advanceX != 0)
-                ? (float)glyph->advanceX
-                : (font.recs[glyphIndex].width + glyph->offsetX);
-
-        lineWidth += advance;
-        lineCharCount++;
+    if (!fontToUse.glyphs) {
+        fontToUse = GetFontDefault();
     }
 
-    /* Final line */
-    maxWidth = fmaxf(maxWidth, lineWidth);
+    float scaleFactor = config->fontSize/(float)fontToUse.baseSize;
+
+    for (int i = 0; i < text.length; lineCharCount++)
+    {
+        if (text.chars[i] == '\n') {
+            maxTextWidth = fmax(maxTextWidth, lineTextWidth);
+            maxLineCharCount = CLAY__MAX(maxLineCharCount, lineCharCount);
+            lineTextWidth = 0;
+            lineCharCount = 0;
+            i++;
+            continue;
+        }
+
+        int codepoint = Raylib_MeasureUtf8Glyph(text, &i);
+
+        // Get the glyph index for this codepoint
+        int glyphIndex = 0;
+        for (int g = 0; g < fontToUse.glyphCount; g++) {
+            if (fontToUse.glyphs[g].value == codepoint) {
+                glyphIndex = g;
+                break;
+            }
+        }
+
+        // If glyph not found, try to use a fallback
+        if (glyphIndex >= fontToUse.glyphCount) {
+            continue; // Skip characters not in the font
+        }
+
+        if (fontToUse.glyphs[glyphIndex].advanceX != 0) {
+            lineTextWidth += fontToUse.glyphs[glyphIndex].advanceX;
+        } else {
+            lineTextWidth += (fontToUse.recs[glyphIndex].width + fontToUse.glyphs[glyphIndex].offsetX);
+        }
+    }
+
+    maxTextWidth = fmax(maxTextWidth, lineTextWidth);
     maxLineCharCount = CLAY__MAX(maxLineCharCount, lineCharCount);
 
-    textSize.width  = maxWidth * scale
-                    + (float)maxLineCharCount * config->letterSpacing;
-
-    textSize.height = config->fontSize;
+    textSize.width = maxTextWidth * scaleFactor + (maxLineCharCount * config->letterSpacing);
+    textSize.height = textHeight;
 
     return textSize;
 }
-
 
 void Clay_Raylib_Initialize(int width, int height, const char *title, unsigned int flags) {
     SetConfigFlags(flags);
@@ -289,4 +342,85 @@ void Clay_Raylib_Render(Clay_RenderCommandArray renderCommands, Font* fonts)
             }
         }
     }
+}
+
+// Load a comprehensive range of characters
+Font LoadFontWithExtendedUnicode(const char* fileName, int fontSize) {
+    #define MAX_GLYPHS 2048
+    int *codepoints = (int*)malloc(MAX_GLYPHS * sizeof(int));
+    int index = 0;
+
+    // Basic Latin (0x0020 - 0x007F)
+    for (int i = 0x0020; i <= 0x007F && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Latin-1 Supplement (0x0080 - 0x00FF) - French, Spanish, etc.
+    for (int i = 0x0080; i <= 0x00FF && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Latin Extended-A (0x0100 - 0x017F) - More European languages
+    for (int i = 0x0100; i <= 0x017F && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Latin Extended-B (0x0180 - 0x024F)
+    for (int i = 0x0180; i <= 0x024F && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // General Punctuation (0x2000 - 0x206F)
+    for (int i = 0x2000; i <= 0x206F && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Currency Symbols (0x20A0 - 0x20CF)
+    for (int i = 0x20A0; i <= 0x20CF && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Geometric Shapes (0x25A0 - 0x25FF)
+    for (int i = 0x25A0; i <= 0x25FF && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Miscellaneous Symbols (0x2600 - 0x26FF)
+    for (int i = 0x2600; i <= 0x26FF && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Box Drawing (0x2500 - 0x257F)
+    for (int i = 0x2500; i <= 0x257F && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    // Mathematical Operators (0x2200 - 0x22FF)
+    for (int i = 0x2200; i <= 0x22FF && index < MAX_GLYPHS; i++) {
+        codepoints[index++] = i;
+    }
+
+    Font font = LoadFontEx(fileName, fontSize, codepoints, index);
+    free(codepoints);
+
+    return font;
+}
+
+// For better performance, load only Material Design icons if that's what you're using
+Font LoadNerdFontMaterialOnly(const char* fontPath, int fontSize) {
+    int* codepoints = (int*)malloc(8000 * sizeof(int));
+    int index = 0;
+
+    // Material Design Icons - the main range
+    // This includes your play icon 󰐊 (0xF040A)
+    for (int i = 0xF0001; i <= 0xF1AF0 && index < 8000; i++) {
+        codepoints[index++] = i;
+    }
+
+    Font font = LoadFontEx(fontPath, fontSize, codepoints, index);
+    free(codepoints);
+
+    printf("INFO: Nerd Font (Material Design only) loaded with %d codepoints\n", index);
+
+    return font;
 }
