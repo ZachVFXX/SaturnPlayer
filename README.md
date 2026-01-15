@@ -1,7 +1,7 @@
 Music player in C
 
 build command : 
-clang -std=99 -Wall -Wextra -Werror -fsanitize=address -g -o main main.c -lraylib -lGL -lm -lpthread -ldl -lrt -lX11 -lid3v2lib
+clang -std=c99 -Wall -Wextra -Werror -fsanitize=address -g -o main main.c -lraylib -lGL -lm -lpthread -ldl -lrt -lX11 -lid3v2lib
 
 Using: 
 https://github.com/larsbs/id3v2lib 
