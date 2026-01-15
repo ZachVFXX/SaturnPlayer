@@ -171,6 +171,7 @@ b32 plat_mem_release(void* ptr, u64 size) {
 
 #elif defined(__linux__)
 
+#define _POSIX_C_SOURCE 200809L
 #define _DEFAULT_SOURCE
 
 #include <unistd.h>
@@ -194,10 +195,7 @@ b32 plat_mem_commit(void* ptr, u64 size) {
 }
 
 b32 plat_mem_decommit(void* ptr, u64 size) {
-    i32 ret = mprotect(ptr, size, PROT_NONE);
-    if (ret != 0) return false;
-    ret = madvise(ptr, size, MADV_DONTNEED);
-    return ret == 0;
+    return mprotect(ptr, size, PROT_NONE) == 0;
 }
 
 b32 plat_mem_release(void* ptr, u64 size) {

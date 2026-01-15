@@ -1,3 +1,4 @@
+#include <id3v2lib-2.0/modules/utils.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 typedef struct {
     unsigned char* data;
     size_t size;
-    const char* mime_type;
+    char* mime_type;
 } ImageBuffer;
 
 typedef struct {
@@ -103,12 +104,13 @@ Metadata* get_metadata_from_mp3(mem_arena *arena, char* filepath)
     {
         img->size = apic_frame->data->picture_size;
         img->data = arena_push(arena, img->size, false);
-        img->mime_type = apic_frame->data->mime_type;
+        img->mime_type = arena_push(arena, ID3v2_strlent(apic_frame->data->mime_type), false);
 
         if (!img->data) {
             fprintf(stderr, "Memory allocation failed for cover buffer\n");
         } else {
             memcpy(img->data, apic_frame->data->data, img->size);
+            memcpy(img->mime_type, apic_frame->data->mime_type, ID3v2_strlent(apic_frame->data->mime_type));
             printf("Cover loaded in memory (%zu bytes, %s)\n",
                    img->size,
                    img->mime_type);

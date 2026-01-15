@@ -81,49 +81,75 @@ Ray GetScreenToWorldPointWithZDistance(Vector2 position, Camera camera, int scre
     return ray;
 }
 
-
-static inline Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData) {
-    // Measure string size for Font
+static inline Clay_Dimensions
+Raylib_MeasureText(Clay_StringSlice text,
+                   Clay_TextElementConfig *config,
+                   void *userData)
+{
     Clay_Dimensions textSize = { 0 };
 
-    float maxTextWidth = 0.0f;
-    float lineTextWidth = 0;
-    int maxLineCharCount = 0;
-    int lineCharCount = 0;
+    Font *fonts = (Font *)userData;
+    Font font = fonts[config->fontId];
 
-    float textHeight = config->fontSize;
-    Font* fonts = (Font*)userData;
-    Font fontToUse = fonts[config->fontId];
-    // Font failed to load, likely the fonts are in the wrong place relative to the execution dir.
-    // RayLib ships with a default font, so we can continue with that built in one.
-    if (!fontToUse.glyphs) {
-        fontToUse = GetFontDefault();
+    if (!font.glyphs || font.glyphCount <= 0) {
+        font = GetFontDefault();
     }
 
-    float scaleFactor = config->fontSize/(float)fontToUse.baseSize;
+    const float scale = config->fontSize / (float)font.baseSize;
 
-    for (int i = 0; i < text.length; ++i, lineCharCount++)
+    float lineWidth = 0.0f;
+    float maxWidth  = 0.0f;
+
+    int lineCharCount = 0;
+    int maxLineCharCount = 0;
+
+    for (int i = 0; i < text.length; i++)
     {
-        if (text.chars[i] == '\n') {
-            maxTextWidth = fmax(maxTextWidth, lineTextWidth);
+        unsigned char c = (unsigned char)text.chars[i];
+
+        /* Ignore UTF-8 continuation bytes (10xxxxxx) */
+        if ((c & 0xC0) == 0x80) {
+            continue;
+        }
+
+        /* New line */
+        if (c == '\n') {
+            maxWidth = fmaxf(maxWidth, lineWidth);
             maxLineCharCount = CLAY__MAX(maxLineCharCount, lineCharCount);
-            lineTextWidth = 0;
+            lineWidth = 0.0f;
             lineCharCount = 0;
             continue;
         }
-        int index = text.chars[i] - 32;
-        if (fontToUse.glyphs[index].advanceX != 0) lineTextWidth += fontToUse.glyphs[index].advanceX;
-        else lineTextWidth += (fontToUse.recs[index].width + fontToUse.glyphs[index].offsetX);
+
+        /* Raylib fonts start at ASCII 32 */
+        if (c < 32 || c >= (32 + font.glyphCount)) {
+            continue;
+        }
+
+        int glyphIndex = c - 32;
+        GlyphInfo *glyph = &font.glyphs[glyphIndex];
+
+        float advance =
+            (glyph->advanceX != 0)
+                ? (float)glyph->advanceX
+                : (font.recs[glyphIndex].width + glyph->offsetX);
+
+        lineWidth += advance;
+        lineCharCount++;
     }
 
-    maxTextWidth = fmax(maxTextWidth, lineTextWidth);
+    /* Final line */
+    maxWidth = fmaxf(maxWidth, lineWidth);
     maxLineCharCount = CLAY__MAX(maxLineCharCount, lineCharCount);
 
-    textSize.width = maxTextWidth * scaleFactor + (lineCharCount * config->letterSpacing);
-    textSize.height = textHeight;
+    textSize.width  = maxWidth * scale
+                    + (float)maxLineCharCount * config->letterSpacing;
+
+    textSize.height = config->fontSize;
 
     return textSize;
 }
+
 
 void Clay_Raylib_Initialize(int width, int height, const char *title, unsigned int flags) {
     SetConfigFlags(flags);

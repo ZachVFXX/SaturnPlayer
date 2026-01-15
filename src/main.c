@@ -1,5 +1,7 @@
 #include <raylib.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -70,7 +72,7 @@ Music music = {0};
 mem_arena* song_arena = {0};
 
 void HandleButtonInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
-    int index = *(int*)userData;
+    int index = (int)(intptr_t)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
         selectIndex(&queue, index);
         playIndex(queue, index);
@@ -78,12 +80,9 @@ void HandleButtonInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
 }
 
 void RenderSong(Song song, int index) {
-    int* indexes = arena_push(song_arena, sizeof(index), true);
-    memcpy(indexes, &index, sizeof(index));
-
-    Clay_String clay_string = { .chars = song.title, .length = strlen(song.title), .isStaticallyAllocated = false };
+    Clay_String clay_string = { .chars = song.title, .length = strlen(song.title), .isStaticallyAllocated = true };
     CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40)}, .padding = {8, 8, 4, 4} }, .backgroundColor = (index == queue.current_index) ? COLOR_BLUE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT) }) {
-        Clay_OnHover(HandleButtonInteraction, indexes);
+        Clay_OnHover(HandleButtonInteraction, (void*)(intptr_t)index);
         CLAY_TEXT(clay_string, CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = {255,255,255,255} }));
     }
 }
@@ -114,14 +113,14 @@ int main(void)
     song_arena = arena_create(GiB(1), MiB(1));
 
     vectorInit(&songs, sizeof(Song), 32);
-    vectorInit(&covers_textures, sizeof(Song), 32);
+    vectorInit(&covers_textures, sizeof(Texture2D), 32);
 
     queue.songs=&songs;
     queue.current_index=0;
 
     FilePathList music_files = LoadDirectoryFilesEx("/home/zach/.pymusicterm/musics/", ".mp3", false);
 
-    for (int i = 0; i < music_files.count; i++)
+    for (size_t i = 0; i < music_files.count; i++)
     {
         char* filepath = music_files.paths[i];
         Song* song = createSong(song_arena, filepath);
@@ -152,6 +151,7 @@ int main(void)
             totalMemorySize = Clay_MinMemorySize();
             clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
             Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)GetScreenWidth(), (float)GetScreenHeight() }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
+            Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
             reinitializeClay = false;
         }
 
@@ -203,7 +203,7 @@ int main(void)
 
         CLAY(CLAY_ID("WINDOW"), { .layout = { .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_BACKGROUND}) {
             CLAY(CLAY_ID("PLAYLIST_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .height = CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                for (int i = 0; i < queue.songs->count; i++) {
+                for (size_t i = 0; i < queue.songs->count; i++) {
                     Song song = *(Song*)vectorGet(&songs, i);
                     RenderSong(song, i);
                 }
@@ -223,6 +223,13 @@ int main(void)
         EndDrawing();
     }
 
+    for (size_t i = 0; i < covers_textures.count; i++) {
+        Texture2D* t = vectorGet(&covers_textures, i);
+        UnloadTexture(*t);
+    }
+
+    UnloadMusicStream(music);
+    UnloadFont(fonts[0]);
     vectorFree(&songs);
     vectorFree(&covers_textures);
     arena_destroy(song_arena);
@@ -239,11 +246,11 @@ Song* createSong(mem_arena* arena, char* filepath)
 
         Metadata* metadata = get_metadata_from_mp3(arena, filepath);
         Song* song = PUSH_STRUCT(arena, Song);
-        song->title = metadata->title_text;
-        song->artists = metadata->artist_text;
-        song->album = metadata->album_text;
+        song->title = arena_strdup(arena, metadata->title_text);
+        song->artists = arena_strdup(arena, metadata->artist_text);
+        song->album = arena_strdup(arena, metadata->album_text);
         song->img = metadata->image;
-        song->path = filepath;
+        song->path = arena_strdup(arena, filepath);
         return song;
     }
     return NULL;
