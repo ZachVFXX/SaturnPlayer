@@ -26,6 +26,8 @@ void* vectorGet(Vector* vec, size_t index);
 
 int vectorShuffle(Vector* vec);
 
+int vectorFindIndex(Vector* vec, void* data);
+
 #ifdef VECTOR_IMPLEMENTATION
 
 #include <stdlib.h>
@@ -105,6 +107,16 @@ int vectorRemove(Vector* vec, size_t index) {
 void* vectorGet(Vector* vec, size_t index) {
     if (index >= vec->count) return NULL;
     return (char*)vec->data + index * vec->element_size;
+}
+
+int vectorFindIndex(Vector* vec, void* data) {
+    if (!data) return -1;
+        for (size_t i = 0; i < vec->count; i++) {
+            if (vectorGet(vec, i) == data) {
+                return i;
+            }
+        }
+    return -1;
 }
 
 int vectorShuffle(Vector* vec) {

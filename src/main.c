@@ -39,13 +39,14 @@ typedef struct {
     char* artists;
     char* album;
     float_t length; // second
-    uint32_t textureIndex;
+    int textureIndex;
+    int id;
 } Song;
 
 typedef struct {
     Playlist* songs;
-    int32_t current_index_selected;
-    int32_t current_index_playing;
+    int32_t current_id_selected;
+    int32_t current_id_playing;
 } Queue;
 
 typedef struct {
@@ -58,13 +59,18 @@ typedef struct {
     Clay_String clay;
 } UiTimeString;
 
-void selectIndex(Queue* queue, int index);
-void playIndex(Queue* queue, int index);
+void selectId(Queue* queue, int id);
+void playPrevious(Queue* queue);
+void playNext(Queue* queue);
+void selectPrevious(Queue* queue);
+void selectNext(Queue* queue);
+void playId(Queue* queue, int id);
 Song* createSong(mem_arena* arena, char* filepath);
 bool addSongToQueue(Queue* queue, Song* song, int index);
-bool removeSongFromQueue(Queue* queue, int index);
+bool removeSongFromQueue(Queue *queue, int id);
+int findSongById(Queue* queue, int id);
 Texture2D texture2DFromImageBuffer(ImageBuffer* img);
-void renderSong(Song song, int index);
+void renderSong(Song song);
 UiTimeString timeStringFromFloat(mem_arena* arena, float seconds);
 
 // CLAY RENDER
@@ -91,10 +97,12 @@ SliderState music_slider = {0};
 bool debugEnabled = false;
 bool isLooping = false;
 
+static int next_song_id = 0;
+
 int main(void)
 {
     // Clay initialisation
-    uint64_t totalMemorySize = Clay_MinMemorySize();
+    int totalMemorySize = Clay_MinMemorySize();
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
     Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)DEFAULT_WIDTH, (float)DEFAULT_HEIGHT }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
 
@@ -122,8 +130,8 @@ int main(void)
     vectorInit(&songs, sizeof(Song), 32);
     vectorInit(&covers_textures, sizeof(Texture2D), 32);
 
-    queue.songs=&songs;
-    queue.current_index_selected=0;
+    queue.songs = &songs;
+    queue.current_id_selected = 0;
 
     FilePathList music_files = LoadDirectoryFilesEx("/home/zach/.pymusicterm/musics/", ".mp3", false);
 
@@ -140,10 +148,10 @@ int main(void)
 
     while (!WindowShouldClose())
     {
-        if (IsKeyPressed(KEY_S)) selectIndex(&queue, queue.current_index_selected + 1);
-        if (IsKeyPressed(KEY_W)) selectIndex(&queue, queue.current_index_selected - 1);
-        if (IsKeyPressed(KEY_R)) removeSongFromQueue(&queue, queue.current_index_selected);
-        if (IsKeyPressed(KEY_ENTER)) playIndex(&queue, queue.current_index_selected);
+        if (IsKeyPressed(KEY_S)) selectPrevious(&queue);
+        if (IsKeyPressed(KEY_W)) selectNext(&queue);
+        if (IsKeyPressed(KEY_R)) removeSongFromQueue(&queue, queue.current_id_selected);
+        if (IsKeyPressed(KEY_ENTER)) playId(&queue, queue.current_id_selected);
         if (IsKeyPressed(KEY_D) && IsMusicValid(music)) SeekMusicStream(music, GetMusicTimePlayed(music) + 5);
         if (IsKeyPressed(KEY_A) && IsMusicValid(music)) SeekMusicStream(music, GetMusicTimePlayed(music) - 5);
         if (IsKeyPressed(KEY_SPACE) && IsMusicValid(music)) { if (IsMusicStreamPlaying(music)) {
@@ -216,8 +224,8 @@ int main(void)
         if (IsMusicStreamPlaying(music)) {
             if (GetMusicTimePlayed(music) + 0.1 >= GetMusicTimeLength(music)) {
                 if (isLooping) continue;
-                selectIndex(&queue, queue.current_index_playing + 1);
-                playIndex(&queue, queue.current_index_selected);
+                selectNext(&queue);
+                playId(&queue, queue.current_id_selected);
             }
         }
 
@@ -227,11 +235,12 @@ int main(void)
             CLAY(CLAY_ID("PLAYLIST_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }}) {
                 for (size_t i = 0; i < queue.songs->count; i++) {
                     Song song = *(Song*)vectorGet(&songs, i);
-                    renderSong(song, i);
+                    renderSong(song);
                 }
             }
             if (IsMusicValid(music)) {
-                Song song = *(Song*)vectorGet(&songs, queue.current_index_playing);
+                int current_idx = findSongById(&queue, queue.current_id_playing);
+                Song song = *(Song*)vectorGet(&songs, current_idx);
                 CLAY(CLAY_ID("PLAYER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.3)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     Clay_String string_title = { .chars = song.title, .length = strlen(song.title), .isStaticallyAllocated = false };
                     CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
@@ -254,7 +263,7 @@ int main(void)
                     }
 
                     CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 0, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = isLooping ? (Clay_Hovered() ? COLOR_ORANGE : COLOR_BLUE) : (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandleShuffleInteraction, NULL);
                             CLAY_TEXT(CLAY_STRING("󰒝"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
@@ -339,6 +348,9 @@ Song* createSong(mem_arena* arena, char* filepath)
         Music music = LoadMusicStream(filepath);
         Metadata* metadata = get_metadata_from_mp3(arena, filepath);
         Song* song = PUSH_STRUCT(arena, Song);
+
+        song->id = next_song_id++;
+
         if (metadata->title_text)
             song->title = arena_strdup(arena, metadata->title_text);
         else song->title = arena_strdup(arena, GetFileNameWithoutExt(filepath));
@@ -352,8 +364,9 @@ Song* createSong(mem_arena* arena, char* filepath)
         else song->album = arena_strdup(arena, "Unknown Album");
 
         Texture2D tex = texture2DFromImageBuffer(metadata->image);
+        song->textureIndex = covers_textures.count;
         vectorAppend(&covers_textures, &tex);
-        song->textureIndex = covers_textures.count - 1;
+
         song->path = arena_strdup(arena, filepath);
         song->length = GetMusicTimeLength(music);
         UnloadMusicStream(music);
@@ -399,32 +412,105 @@ Texture2D texture2DFromImageBuffer(ImageBuffer* img)
 }
 
 
-bool removeSongFromQueue(Queue *queue, int index)
+bool removeSongFromQueue(Queue *queue, int id)
 {
+    int index = findSongById(queue, id);
+    if (index < 0) {
+        TraceLog(LOG_ERROR, "Id %d does not exist in queue.", id);
+        return false;
+    }
+    int new_index = 0;
+    if (queue->current_id_playing == id) {
+        if ((size_t) index > queue->songs->count - 1) {
+            new_index = 0;
+        } else {
+            new_index = index + 1;
+        }
+
+        Song* new_song = (Song*)vectorGet(queue->songs, new_index);
+        playId(queue, new_song->id);
+    }
+
+    if (queue->current_id_selected == id) {
+        if ((size_t) index > queue->songs->count - 1) {
+            new_index = 0;
+        } else {
+            new_index = index + 1;
+        }
+
+        Song* new_song = (Song*)vectorGet(queue->songs, new_index);
+        selectId(queue, new_song->id);
+    }
+
+
     if(vectorRemove(queue->songs, index) < 0) {
         TraceLog(LOG_ERROR, "Removing the song in the queue failed at index %d.", index);
         return false;
     }
-    selectIndex(queue, queue->current_index_selected - 1);
     return true;
 }
 
-void selectIndex(Queue* queue, int index)
+void playPrevious(Queue* queue)
 {
-    if (index < 0) index = queue->songs->count - 1;
+    selectPrevious(queue);
+    playId(queue, queue->current_id_selected);
+}
+
+void playNext(Queue* queue)
+{
+    selectNext(queue);
+    playId(queue, queue->current_id_selected);
+}
+
+void selectPrevious(Queue* queue)
+{
+    int current_index = findSongById(queue, queue->current_id_selected);
+    int new_index = current_index + 1;
+    if ((size_t) new_index > queue->songs->count - 1) {
+        new_index = 0;
+    }
+    selectId(queue, ((Song*)vectorGet(queue->songs, new_index))->id);
+}
+
+void selectNext(Queue* queue)
+{
+    int current_index = findSongById(queue, queue->current_id_selected);
+    int new_index = current_index - 1;
+    if (new_index < 0) {
+        new_index = queue->songs->count - 1;
+    }
+    selectId(queue, ((Song*)vectorGet(queue->songs, new_index))->id);
+}
+
+void selectId(Queue* queue, int id)
+{
+    int index = findSongById(queue, id);
+    if (index < 0) {
+        TraceLog(LOG_ERROR, "Id %d does not exist.", id);
+    }
     if ((size_t) index >= queue->songs->count) index = 0;
-    queue->current_index_selected = index;
-    TraceLog(LOG_INFO, "Selecting index at index %d.", index);
+    queue->current_id_selected = ((Song*) vectorGet(queue->songs, index))->id;
+    TraceLog(LOG_INFO, "Selecting id %d.", id);
 
 }
 
-void playIndex(Queue* queue, int index)
+int findSongById(Queue* queue, int id) {
+    for (size_t i = 0; i < queue->songs->count; i++) {
+        Song* song = (Song*)vectorGet(queue->songs, i);
+        if (song->id == id) return i;
+    }
+    return -1;
+}
+
+void playId(Queue* queue, int id)
 {
     if (IsMusicValid(music)) UnloadMusicStream(music);
-    if ((size_t) index < queue->songs->count || index > 0) {
+    if ((size_t) id < queue->songs->count || id > 0) {
+        int index = findSongById(queue, id);
+        if (index < 0) return;
         music = LoadMusicStream(((Song*)vectorGet(queue->songs, index))->path);
         PlayMusicStream(music);
-        queue->current_index_playing = index;
+        queue->current_id_playing = id;
     }
 }
 
@@ -441,10 +527,11 @@ void HandleClayErrors(Clay_ErrorData errorData)
 }
 
 
-void renderSong(Song song, int index) {
-    CLAY_AUTO_ID({ .layout = { .childAlignment = {.y = CLAY_ALIGN_Y_CENTER}, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)}, .childGap = 8 }, .backgroundColor =  (index == queue.current_index_selected) ? COLOR_BLUE : (index == queue.current_index_playing) ? COLOR_ORANGE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT)}) {
-        Clay_Color color = (index == queue.current_index_selected) ? COLOR_BLUE : (index == queue.current_index_playing) ? COLOR_ORANGE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT);
-        Clay_OnHover(HandleSongInteraction, (void*)(intptr_t)index);
+void renderSong(Song song) {
+    int id = song.id;
+    CLAY_AUTO_ID({ .layout = { .childAlignment = {.y = CLAY_ALIGN_Y_CENTER}, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)}, .childGap = 8 }, .backgroundColor =  (id == queue.current_id_selected) ? COLOR_BLUE : (id == queue.current_id_playing) ? COLOR_ORANGE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT)}) {
+        Clay_Color color = (id == queue.current_id_selected) ? COLOR_BLUE : (id == queue.current_id_playing) ? COLOR_ORANGE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT);
+        Clay_OnHover(HandleSongInteraction, (void*)(intptr_t)id);
         CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)} }, .image = { .imageData = vectorGet(&covers_textures, song.textureIndex)}, .aspectRatio = { 1 }}) {}
         CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 16 }, .backgroundColor = color}) {
             Clay_String string_title = { .chars = song.title, .length = strlen(song.title), .isStaticallyAllocated = false };
@@ -494,8 +581,7 @@ UiTimeString timeStringFromFloat(mem_arena* arena, float seconds)
 void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
-        selectIndex(&queue, queue.current_index_playing - 1);
-        playIndex(&queue, queue.current_index_selected);
+        playPrevious(&queue);
     }
 }
 
@@ -513,19 +599,18 @@ void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
-        selectIndex(&queue, queue.current_index_playing + 1);
-        playIndex(&queue, queue.current_index_selected);
+        playNext(&queue);
     }
 }
 
 void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
-    int index = (int)(intptr_t)userData;
+    int id = (int)(intptr_t)userData;
 
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
-        if (index == queue.current_index_selected) {
-            playIndex(&queue, queue.current_index_selected);
+        if (id == queue.current_id_selected) {
+            playId(&queue, queue.current_id_selected);
         } else {
-            selectIndex(&queue, index);
+            selectId(&queue, id);
         }
     }
 }
