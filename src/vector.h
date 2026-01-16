@@ -24,6 +24,8 @@ int vectorRemove(Vector* vec, size_t index);
 
 void* vectorGet(Vector* vec, size_t index);
 
+int vectorShuffle(Vector* vec);
+
 #ifdef VECTOR_IMPLEMENTATION
 
 #include <stdlib.h>
@@ -103,6 +105,33 @@ int vectorRemove(Vector* vec, size_t index) {
 void* vectorGet(Vector* vec, size_t index) {
     if (index >= vec->count) return NULL;
     return (char*)vec->data + index * vec->element_size;
+}
+
+int vectorShuffle(Vector* vec) {
+    if (!vec || !vec->data || vec->count == 0) return -1;
+
+    // Fisher-Yates shuffle algorithm
+    for (size_t i = vec->count - 1; i > 0; i--) {
+        // Generate random index from 0 to i (inclusive)
+        size_t j = rand() % (i + 1);
+
+        if (i != j) {
+            // Swap elements at positions i and j
+            void* temp = malloc(vec->element_size);
+            if (!temp) return -1;
+
+            void* elem_i = (char*)vec->data + i * vec->element_size;
+            void* elem_j = (char*)vec->data + j * vec->element_size;
+
+            memcpy(temp, elem_i, vec->element_size);
+            memcpy(elem_i, elem_j, vec->element_size);
+            memcpy(elem_j, temp, vec->element_size);
+
+            free(temp);
+        }
+    }
+
+    return 0;
 }
 
 #endif // VECTOR_IMPLEMENTATION

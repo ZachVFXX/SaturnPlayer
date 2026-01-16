@@ -30,6 +30,7 @@
 #define COLOR_BACKGROUND_LIGHT (Clay_Color) {40, 40, 40, 255}
 #define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = {255,255,255,255} })
 #define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = {255,255,255,255} })
+
 typedef Vector Playlist;
 
 typedef struct {
@@ -38,7 +39,7 @@ typedef struct {
     char* artists;
     char* album;
     float_t length; // second
-    ImageBuffer* img;
+    uint32_t textureIndex;
 } Song;
 
 typedef struct {
@@ -111,6 +112,7 @@ int main(void)
 
    	SetTextureFilter(fonts[0].texture, TEXTURE_FILTER_BILINEAR);
    	SetTextureFilter(fonts[1].texture, TEXTURE_FILTER_BILINEAR);
+   	SetTextureFilter(fonts[2].texture, TEXTURE_FILTER_BILINEAR);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
@@ -129,8 +131,6 @@ int main(void)
     {
         char* filepath = music_files.paths[i];
         Song* song = createSong(song_arena, filepath);
-        Texture2D tex = texture2DFromImageBuffer(song->img);
-        vectorAppend(&covers_textures, &tex);
         if (song){
             addSongToQueue(&queue, song, queue.songs->count);
         } else {
@@ -181,8 +181,6 @@ int main(void)
             {
                 char* filepath = droppedFiles.paths[i];
                 Song* song = createSong(song_arena, filepath);
-                Texture2D tex = texture2DFromImageBuffer(song->img);
-                vectorAppend(&covers_textures, &tex);
                 if (song){
                     addSongToQueue(&queue, song, queue.songs->count);
                 } else {
@@ -256,15 +254,15 @@ int main(void)
                     }
 
                     CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 0, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_BLUE : COLOR_BACKGROUND)}) {
-                            Clay_OnHover(HandleNextInteraction, NULL);
+                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = isLooping ? (Clay_Hovered() ? COLOR_ORANGE : COLOR_BLUE) : (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                            Clay_OnHover(HandleShuffleInteraction, NULL);
                             CLAY_TEXT(CLAY_STRING("󰒝"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
                         CLAY(CLAY_ID("PREVIOUS_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_BLUE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandlePreviousInteraction, NULL);
                             CLAY_TEXT(CLAY_STRING("󰒮"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
-                        CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                        CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_BLUE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandlePlayInteraction, NULL);
                             CLAY_TEXT((IsMusicStreamPlaying(music) == 0) ? CLAY_STRING("󰐊") : CLAY_STRING("󰏤") , CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
@@ -292,6 +290,11 @@ int main(void)
                 snprintf(buf2, 256, "Ui ARENA: %lu/%lu = %lf\n", ui_arena->pos, ui_arena->reserve_size, (double_t)ui_arena->pos / ui_arena->reserve_size);
                 Clay_String string2 = { .chars = buf2, .isStaticallyAllocated = false, .length = strlen(buf2)};
                 CLAY_TEXT(string2 , TEXT_CONFIG_24);
+
+                char* buf3 = arena_push(ui_arena, 256, false);
+                snprintf(buf3, 256, "Frame Time: %f\n", GetFrameTime());
+                Clay_String string3 = { .chars = buf3, .isStaticallyAllocated = false, .length = strlen(buf3)};
+                CLAY_TEXT(string3 , TEXT_CONFIG_24);
             }
         }
 
@@ -302,7 +305,8 @@ int main(void)
         BeginDrawing();
         ClearBackground(BLACK);
         Clay_Raylib_Render(renderCommands, fonts);
-        DrawFPS(0, 0);
+        if (debugEnabled) DrawFPS(0, 0);
+
         EndDrawing();
 
         // RESET UI ARENA FOR THE NEXT PASS
@@ -347,7 +351,9 @@ Song* createSong(mem_arena* arena, char* filepath)
             song->album = arena_strdup(arena, metadata->album_text);
         else song->album = arena_strdup(arena, "Unknown Album");
 
-        song->img = metadata->image;
+        Texture2D tex = texture2DFromImageBuffer(metadata->image);
+        vectorAppend(&covers_textures, &tex);
+        song->textureIndex = covers_textures.count - 1;
         song->path = arena_strdup(arena, filepath);
         song->length = GetMusicTimeLength(music);
         UnloadMusicStream(music);
@@ -363,7 +369,7 @@ bool addSongToQueue(Queue *queue, Song *song, int index)
         TraceLog(LOG_ERROR, "Inserting the song in the queue failed.");
         return false;
     }
-    TraceLog(LOG_INFO, "Title: %s, Artists: %s, Album: %s, Path: %s, Cover type: %s", song->title, song->artists, song->album, song->path, song->img->mime_type);
+    TraceLog(LOG_INFO, "Title: %s, Artists: %s, Album: %s, Path: %s", song->title, song->artists, song->album, song->path);
     return true;
 }
 
@@ -439,7 +445,7 @@ void renderSong(Song song, int index) {
     CLAY_AUTO_ID({ .layout = { .childAlignment = {.y = CLAY_ALIGN_Y_CENTER}, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)}, .childGap = 8 }, .backgroundColor =  (index == queue.current_index_selected) ? COLOR_BLUE : (index == queue.current_index_playing) ? COLOR_ORANGE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT)}) {
         Clay_Color color = (index == queue.current_index_selected) ? COLOR_BLUE : (index == queue.current_index_playing) ? COLOR_ORANGE : (Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT);
         Clay_OnHover(HandleSongInteraction, (void*)(intptr_t)index);
-        CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)} }, .image = { .imageData = vectorGet(&covers_textures, index)}, .aspectRatio = { 1 }}) {}
+        CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)} }, .image = { .imageData = vectorGet(&covers_textures, song.textureIndex)}, .aspectRatio = { 1 }}) {}
         CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 16 }, .backgroundColor = color}) {
             Clay_String string_title = { .chars = song.title, .length = strlen(song.title), .isStaticallyAllocated = false };
             CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
@@ -582,7 +588,14 @@ void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
     }
 }
 
-void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
+void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
+    (void)elementId;
+    (void)userData;
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        vectorShuffle(queue.songs);
+    }
+}
+
 void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void)elementId;
     (void)userData;
