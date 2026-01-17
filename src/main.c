@@ -20,6 +20,16 @@
 #define IMGS_PATH "../assets/imgs/"
 #define FONTS_PATH "../assets/fonts/"
 
+#include "assets/Poppins_Regular.h"
+#include "assets/Poppins_SemiBold.h"
+#include "assets/loop.h"
+#include "assets/next.h"
+#include "assets/pause.h"
+#include "assets/play.h"
+#include "assets/previous.h"
+#include "assets/shuffle.h"
+
+
 #define COLOR_BACKGROUND (Clay_Color) {20, 20, 20, 255}
 #define COLOR_BACKGROUND_LIGHT (Clay_Color) {40, 40, 40, 255}
 #define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = {255,255,255,255} })
@@ -69,7 +79,7 @@ int findSongById(Queue* queue, int id);
 Texture2D texture2DFromImageBuffer(ImageBuffer* img);
 void renderSong(Song song);
 UiTimeString timeStringFromFloat(mem_arena* arena, float seconds);
-Texture2D createTextureFromPath(char* filepath);
+Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height);
 
 // CLAY RENDER
 void HandleClayErrors(Clay_ErrorData errorData);
@@ -109,16 +119,19 @@ int main(void) {
     InitAudioDevice();
     SetTargetFPS(240);
 
-    Texture2D loop_tex = createTextureFromPath(IMGS_PATH"loop.png");
-    Texture2D next_tex = createTextureFromPath(IMGS_PATH"next.png");
-    Texture2D previous_tex = createTextureFromPath(IMGS_PATH"previous.png");
-    Texture2D play_tex = createTextureFromPath(IMGS_PATH"play.png");
-    Texture2D pause_tex = createTextureFromPath(IMGS_PATH"pause.png");
-    Texture2D shuffle_tex = createTextureFromPath(IMGS_PATH"shuffle.png");
+    Texture2D loop_tex = createTextureFromMemory(LOOP_DATA, LOOP_FORMAT, LOOP_WIDTH, LOOP_HEIGHT);
+    Texture2D next_tex = createTextureFromMemory(NEXT_DATA, NEXT_FORMAT, NEXT_WIDTH, NEXT_HEIGHT);
+    Texture2D previous_tex = createTextureFromMemory(PREVIOUS_DATA, PREVIOUS_FORMAT, PREVIOUS_WIDTH, PREVIOUS_HEIGHT);
+    Texture2D play_tex = createTextureFromMemory(PLAY_DATA, PLAY_FORMAT, PLAY_WIDTH, PLAY_HEIGHT);
+    Texture2D pause_tex = createTextureFromMemory(PAUSE_DATA, PAUSE_FORMAT, PAUSE_WIDTH, PAUSE_HEIGHT);
+    Texture2D shuffle_tex = createTextureFromMemory(SHUFFLE_DATA, SHUFFLE_FORMAT, SHUFFLE_WIDTH, SHUFFLE_HEIGHT);
+
+    Font poppins_regular = LoadFont_Poppins_Regular();
+    Font poppins_semibold = LoadFont_Poppins_SemiBold();
 
     Font fonts[] = {
-        LoadFontWithExtendedUnicode(FONTS_PATH"Poppins/Poppins-Regular.ttf", 24),
-        LoadFontWithExtendedUnicode(FONTS_PATH"Poppins/Poppins-SemiBold.ttf", 24),
+        poppins_regular,
+        poppins_semibold,
     };
 
    	SetTextureFilter(fonts[0].texture, TEXTURE_FILTER_BILINEAR);
@@ -341,8 +354,6 @@ int main(void) {
     UnloadTexture(pause_tex);
     UnloadTexture(shuffle_tex);
 
-    UnloadFont(fonts[0]);
-    UnloadFont(fonts[1]);
     UnloadMusicStream(music);
     vectorFree(&songs);
     vectorFree(&covers_textures);
@@ -702,8 +713,15 @@ void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
     }
 }
 
-Texture2D createTextureFromPath(char* filepath) {
-    Texture2D img_tex = LoadTexture(filepath);
+Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height) {
+    Image image = {
+        .data = data,
+        .format = format,
+        .height = height,
+        .width = width,
+        .mipmaps = 1,
+    };
+    Texture2D img_tex = LoadTextureFromImage(image);
    	SetTextureFilter(img_tex, TEXTURE_FILTER_BILINEAR);
     return img_tex;
 }
