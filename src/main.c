@@ -107,7 +107,7 @@ bool isLooping = false;
 
 static int next_song_id = 0;
 
-int main(void) {
+int main(int argc, char** argv) {
     // Clay initialisation
     int totalMemorySize = Clay_MinMemorySize();
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
@@ -148,7 +148,19 @@ int main(void) {
     queue.songs = &songs;
     queue.current_id_selected = 0;
 
-    FilePathList music_files = LoadDirectoryFilesEx("/home/zach/.pymusicterm/musics/", ".mp3", false);
+    for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
+
+    char* working_path;
+
+    if (argc > 1 || IsPathFile(argv[1])) {
+        working_path = argv[1];
+    } else {
+        working_path = ".";
+    }
+
+    TraceLog(LOG_WARNING, "Current path: %s", working_path);
+
+    FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
 
     for (size_t i = 0; i < music_files.count; i++)
     {
