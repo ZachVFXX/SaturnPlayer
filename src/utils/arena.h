@@ -168,7 +168,9 @@ b32 plat_mem_release(void* ptr, u64 size) {
 
 #elif defined(__linux__)
 
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
+#endif
 #define _DEFAULT_SOURCE
 
 #include <unistd.h>

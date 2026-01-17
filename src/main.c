@@ -66,6 +66,11 @@ typedef struct {
     Clay_String clay;
 } UiTimeString;
 
+typedef enum {
+    TABS_QUEUE,
+    TABS_SEARCH
+} Tabs;
+
 void selectId(Queue* queue, int id);
 void playPrevious(Queue* queue);
 void playNext(Queue* queue);
@@ -93,6 +98,28 @@ void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
 void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
 void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
+void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
+
+//MPRIS command
+#if defined(__linux__)
+#include "mpris/mpris.h"
+#include <glib-2.0/gio/gio.h>
+#include <gio/gio.h>
+
+void on_mpris_play_pause();
+void on_mpris_play();
+void on_mpris_pause();
+void on_mpris_play_pause();
+void on_mpris_next();
+void on_mpris_previous();
+void on_seek(long long offset_usec);
+void on_set_pos(const char* id, long long pos_usec);
+double get_pos(void);
+double get_dur(void);
+void on_set_loop(LoopStatus s);
+void on_set_shuffle(bool shuffle);
+#endif
+
 
 // Player
 Music music = {0};
@@ -104,6 +131,7 @@ Queue queue = {0};
 SliderState music_slider = {0};
 bool debugEnabled = false;
 bool isLooping = false;
+Tabs currentTab = TABS_QUEUE;
 
 static int next_song_id = 0;
 
@@ -148,6 +176,24 @@ int main(int argc, char** argv) {
     queue.songs = &songs;
     queue.current_id_selected = 0;
 
+#if defined(__linux__)
+    MPRISCallbacks cbs = {
+            .on_seek = on_seek,
+            .on_set_position = on_set_pos,
+            .get_position = get_pos,
+            .get_duration = get_dur,
+            .on_set_loop = on_set_loop,
+            .on_set_shuffle = on_set_shuffle,
+            .on_play = on_mpris_play,
+            .on_pause = on_mpris_pause,
+            .on_next = on_mpris_next,
+            .on_previous = on_mpris_previous,
+            .on_play_pause = on_mpris_play_pause,
+            .on_stop = NULL,
+        };
+    mpris_start_thread(cbs);
+#endif
+
     for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
 
     char* working_path;
@@ -181,12 +227,7 @@ int main(int argc, char** argv) {
         if (IsKeyPressed(KEY_ENTER)) playId(&queue, queue.current_id_selected);
         if (IsKeyPressed(KEY_D) && IsMusicValid(music)) SeekMusicStream(music, GetMusicTimePlayed(music) + 5);
         if (IsKeyPressed(KEY_A) && IsMusicValid(music)) SeekMusicStream(music, GetMusicTimePlayed(music) - 5);
-        if (IsKeyPressed(KEY_SPACE) && IsMusicValid(music)) { if (IsMusicStreamPlaying(music)) {
-                PauseMusicStream(music);
-            } else {
-                ResumeMusicStream(music);
-            }
-        }
+        if (IsKeyPressed(KEY_SPACE)) on_mpris_play_pause();
 
         if (reinitializeClay) {
             printf("REINITIALIZED\n");
@@ -259,12 +300,32 @@ int main(int argc, char** argv) {
         // START OF THE LAYOUT
         Clay_BeginLayout();
         CLAY(CLAY_ID("WINDOW"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_BACKGROUND}) {
-            CLAY(CLAY_ID("PLAYLIST_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }}) {
-                for (size_t i = 0; i < queue.songs->count; i++) {
-                    Song song = *(Song*)vectorGet(&songs, i);
-                    renderSong(song);
+
+            CLAY(CLAY_ID("TABS_CONTAINER"), { .layout = { .layoutDirection = CLAY_LEFT_TO_RIGHT, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                    Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_QUEUE);
+                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                }
+
+                CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                    Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_SEARCH);
+                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                 }
             }
+
+            if (currentTab == TABS_QUEUE) {
+        CLAY(CLAY_ID("QUEUE_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND}) {
+                    for (size_t i = 0; i < queue.songs->count; i++) {
+                        Song song = *(Song*)vectorGet(&songs, i);
+                        renderSong(song);
+                    }
+                }
+            } else if (currentTab == TABS_SEARCH) {
+            CLAY(CLAY_ID("SEARCH_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                }
+            }
+
             if (IsMusicValid(music)) {
                 int current_idx = findSongById(&queue, queue.current_id_playing);
                 Song song = *(Song*)vectorGet(&songs, current_idx);
@@ -541,13 +602,19 @@ int findSongById(Queue* queue, int id) {
 void playId(Queue* queue, int id)
 {
     if (IsMusicValid(music)) UnloadMusicStream(music);
-    if ((size_t) id < queue->songs->count || id > 0) {
-        int index = findSongById(queue, id);
-        if (index < 0) return;
-        music = LoadMusicStream(((Song*)vectorGet(queue->songs, index))->path);
-        PlayMusicStream(music);
-        queue->current_id_playing = id;
-    }
+
+    int index = findSongById(queue, id);
+    if (index < 0) return;
+
+    Song* song = (Song*)vectorGet(queue->songs, index);
+    music = LoadMusicStream(song->path);
+    PlayMusicStream(music);
+    queue->current_id_playing = id;
+
+#if defined(__linux__)
+    mpris_update_metadata(song->title, song->artists, song->album, NULL);
+    mpris_set_status(MPRIS_PLAYING);
+#endif
 }
 
 void HandleClayErrors(Clay_ErrorData errorData)
@@ -725,6 +792,15 @@ void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
     }
 }
 
+void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
+    (void)elementId;
+    Tabs new_tab = (Tabs)(uintptr_t)userData;
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        currentTab = new_tab;
+        TraceLog(LOG_INFO, "Current tab set to %d", currentTab);
+    }
+}
+
 Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height) {
     Image image = {
         .data = data,
@@ -737,3 +813,64 @@ Texture2D createTextureFromMemory(unsigned char* data, int format, int width, in
    	SetTextureFilter(img_tex, TEXTURE_FILTER_BILINEAR);
     return img_tex;
 }
+
+#if defined(__linux__)
+void on_mpris_play() {
+    if (IsMusicValid(music)) {
+        ResumeMusicStream(music);
+        mpris_set_status(MPRIS_PLAYING);
+    }
+}
+
+void on_mpris_pause() {
+    if (IsMusicValid(music)) {
+        PauseMusicStream(music);
+        mpris_set_status(MPRIS_PAUSED);
+    }
+}
+
+void on_mpris_play_pause() {
+    if (IsMusicStreamPlaying(music)) on_mpris_pause();
+    else on_mpris_play();
+}
+
+void on_mpris_next() {
+    playNext(&queue);
+}
+
+void on_mpris_previous() {
+    playPrevious(&queue);
+}
+
+void on_seek(long long offset_usec) {
+    if (IsMusicValid(music)) {
+        float current = GetMusicTimePlayed(music);
+        SeekMusicStream(music, current + (float)offset_usec / 1000000.0f);
+    }
+}
+
+void on_set_pos(const char* id, long long pos_usec) {
+    (void)id;
+    if (IsMusicValid(music)) {
+        SeekMusicStream(music, (float)pos_usec / 1000000.0f);
+    }
+}
+
+double get_pos(void) {
+    return GetMusicTimePlayed(music);
+}
+
+double get_dur(void) {
+    return GetMusicTimeLength(music);
+}
+
+void on_set_loop(LoopStatus s) {
+    isLooping = (s != MPRIS_LOOP_NONE);
+}
+
+void on_set_shuffle(bool shuffle) {
+    (void) shuffle;
+    vectorShuffle(queue.songs);
+}
+
+#endif
