@@ -1,11 +1,11 @@
-#include <id3v2lib-2.0/modules/utils.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <iconv.h>
 #include <id3v2lib-2.0/id3v2lib.h>
+#include <iconv.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+
 #define ARENA_IMPLEMENTATION
-#include "arena.h"
+#include "utils/arena.h"
 
 typedef struct {
     unsigned char* data;
@@ -125,7 +125,7 @@ char* get_displayable_text(mem_arena* arena, ID3v2_TextFrame* f)
     iconv_t cd = iconv_open("UTF-8", from_encoding);
     if (cd == (iconv_t)-1)
     {
-        perror("iconv_open failed");
+        printf("iconv_open failed");
         return NULL;
     }
 

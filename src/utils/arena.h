@@ -3,10 +3,7 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-#include <stdio.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdbool.h>
 
 typedef int8_t i8;
 typedef int16_t i16;

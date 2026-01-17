@@ -1,22 +1,13 @@
-#include <math.h>
-#include <raylib.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
+#include "raylib.h"
 
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
 #include "../external/raylib_renderer.c"
-#define RAYLIB_VECTOR2_TO_CLAY_VECTOR2(vector) (Clay_Vector2) { .x = vector.x, .y = vector.y }
 
 #define VECTOR_IMPLEMENTATION
-#include "vector.h"
+#include "utils/vector.h"
 #define ARENA_IMPLEMENTATION
-#include "arena.h"
+#include "utils/arena.h"
 
 #include "metadata.c"
 
@@ -26,10 +17,16 @@
 #define COLOR_ORANGE (Clay_Color) {225, 138, 50, 255}
 #define COLOR_BLUE (Clay_Color) {111, 173, 162, 255}
 
+#define IMGS_PATH "../assets/imgs/"
+#define FONTS_PATH "../assets/fonts/"
+
 #define COLOR_BACKGROUND (Clay_Color) {20, 20, 20, 255}
 #define COLOR_BACKGROUND_LIGHT (Clay_Color) {40, 40, 40, 255}
 #define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = {255,255,255,255} })
 #define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = {255,255,255,255} })
+
+#define RAYLIB_VECTOR2_TO_CLAY_VECTOR2(vector) (Clay_Vector2) { .x = vector.x, .y = vector.y }
+#define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
 
 typedef Vector Playlist;
 
@@ -72,6 +69,7 @@ int findSongById(Queue* queue, int id);
 Texture2D texture2DFromImageBuffer(ImageBuffer* img);
 void renderSong(Song song);
 UiTimeString timeStringFromFloat(mem_arena* arena, float seconds);
+Texture2D createTextureFromPath(char* filepath);
 
 // CLAY RENDER
 void HandleClayErrors(Clay_ErrorData errorData);
@@ -99,8 +97,7 @@ bool isLooping = false;
 
 static int next_song_id = 0;
 
-int main(void)
-{
+int main(void) {
     // Clay initialisation
     int totalMemorySize = Clay_MinMemorySize();
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
@@ -112,15 +109,20 @@ int main(void)
     InitAudioDevice();
     SetTargetFPS(240);
 
+    Texture2D loop_tex = createTextureFromPath(IMGS_PATH"loop.png");
+    Texture2D next_tex = createTextureFromPath(IMGS_PATH"next.png");
+    Texture2D previous_tex = createTextureFromPath(IMGS_PATH"previous.png");
+    Texture2D play_tex = createTextureFromPath(IMGS_PATH"play.png");
+    Texture2D pause_tex = createTextureFromPath(IMGS_PATH"pause.png");
+    Texture2D shuffle_tex = createTextureFromPath(IMGS_PATH"shuffle.png");
+
     Font fonts[] = {
-        LoadFontWithExtendedUnicode("../assets/fonts/Poppins/Poppins-Regular.ttf", 24),
-        LoadFontWithExtendedUnicode("../assets/fonts/Poppins/Poppins-SemiBold.ttf", 24),
-        LoadNerdFontMaterialOnly("../assets/fonts/JetBrainsMono/JetBrainsMonoNerdFont-Regular.ttf", 24),
+        LoadFontWithExtendedUnicode(FONTS_PATH"Poppins/Poppins-Regular.ttf", 24),
+        LoadFontWithExtendedUnicode(FONTS_PATH"Poppins/Poppins-SemiBold.ttf", 24),
     };
 
    	SetTextureFilter(fonts[0].texture, TEXTURE_FILTER_BILINEAR);
    	SetTextureFilter(fonts[1].texture, TEXTURE_FILTER_BILINEAR);
-   	SetTextureFilter(fonts[2].texture, TEXTURE_FILTER_BILINEAR);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
@@ -148,8 +150,8 @@ int main(void)
 
     while (!WindowShouldClose())
     {
-        if (IsKeyPressed(KEY_S)) selectPrevious(&queue);
-        if (IsKeyPressed(KEY_W)) selectNext(&queue);
+        if (IsKeyPressed(KEY_S)) selectNext(&queue);
+        if (IsKeyPressed(KEY_W)) selectPrevious(&queue);
         if (IsKeyPressed(KEY_R)) removeSongFromQueue(&queue, queue.current_id_selected);
         if (IsKeyPressed(KEY_ENTER)) playId(&queue, queue.current_id_selected);
         if (IsKeyPressed(KEY_D) && IsMusicValid(music)) SeekMusicStream(music, GetMusicTimePlayed(music) + 5);
@@ -241,7 +243,7 @@ int main(void)
             if (IsMusicValid(music)) {
                 int current_idx = findSongById(&queue, queue.current_id_playing);
                 Song song = *(Song*)vectorGet(&songs, current_idx);
-                CLAY(CLAY_ID("PLAYER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.3)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.3)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     Clay_String string_title = { .chars = song.title, .length = strlen(song.title), .isStaticallyAllocated = false };
                     CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
 
@@ -265,23 +267,28 @@ int main(void)
                     CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 0, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                         CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandleShuffleInteraction, NULL);
-                            CLAY_TEXT(CLAY_STRING("󰒝"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &shuffle_tex}, .aspectRatio = { 1 }}) {}
+                            //CLAY_TEXT(CLAY_STRING("󰒝"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
                         CLAY(CLAY_ID("PREVIOUS_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_BLUE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandlePreviousInteraction, NULL);
-                            CLAY_TEXT(CLAY_STRING("󰒮"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &previous_tex}, .aspectRatio = { 1 }}) {}
+                            //CLAY_TEXT(CLAY_STRING("󰒮"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
                         CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_BLUE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandlePlayInteraction, NULL);
-                            CLAY_TEXT((IsMusicStreamPlaying(music) == 0) ? CLAY_STRING("󰐊") : CLAY_STRING("󰏤") , CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = (IsMusicStreamPlaying(music)) ? &pause_tex : &play_tex}, .aspectRatio = { 1 }}) {}
+                            //CLAY_TEXT((IsMusicStreamPlaying(music) == 0) ? CLAY_STRING("󰐊") : CLAY_STRING("󰏤") , CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
                         CLAY(CLAY_ID("NEXT_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_BLUE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandleNextInteraction, NULL);
-                            CLAY_TEXT(CLAY_STRING("󰒭"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &next_tex}, .aspectRatio = { 1 }}) {}
+                            //CLAY_TEXT(CLAY_STRING("󰒭"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
                         CLAY(CLAY_ID("LOOP_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = isLooping ? (Clay_Hovered() ? COLOR_ORANGE : COLOR_BLUE) : (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandleLoopInteraction, NULL);
-                            CLAY_TEXT(CLAY_STRING("󰛤"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &loop_tex }, .aspectRatio = { 1 }}) {}
+                            //CLAY_TEXT(CLAY_STRING("󰛤"), CLAY_TEXT_CONFIG({ .fontId = 2, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                         }
                     }
                 }
@@ -312,7 +319,7 @@ int main(void)
 
         // RAYLIB drawing of the render commands
         BeginDrawing();
-        ClearBackground(BLACK);
+        ClearBackground(CLAY_COLOR_TO_RAYLIB_COLOR(COLOR_BACKGROUND));
         Clay_Raylib_Render(renderCommands, fonts);
         if (debugEnabled) DrawFPS(0, 0);
 
@@ -327,9 +334,15 @@ int main(void)
         UnloadTexture(*t);
     }
 
+    UnloadTexture(loop_tex);
+    UnloadTexture(play_tex);
+    UnloadTexture(next_tex);
+    UnloadTexture(previous_tex);
+    UnloadTexture(pause_tex);
+    UnloadTexture(shuffle_tex);
+
     UnloadFont(fonts[0]);
     UnloadFont(fonts[1]);
-    UnloadFont(fonts[2]);
     UnloadMusicStream(music);
     vectorFree(&songs);
     vectorFree(&covers_textures);
@@ -462,7 +475,7 @@ void playNext(Queue* queue)
     playId(queue, queue->current_id_selected);
 }
 
-void selectPrevious(Queue* queue)
+void selectNext(Queue* queue)
 {
     int current_index = findSongById(queue, queue->current_id_selected);
     int new_index = current_index + 1;
@@ -472,7 +485,7 @@ void selectPrevious(Queue* queue)
     selectId(queue, ((Song*)vectorGet(queue->songs, new_index))->id);
 }
 
-void selectNext(Queue* queue)
+void selectPrevious(Queue* queue)
 {
     int current_index = findSongById(queue, queue->current_id_selected);
     int new_index = current_index - 1;
@@ -687,4 +700,10 @@ void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
         isLooping = !isLooping;
     }
+}
+
+Texture2D createTextureFromPath(char* filepath) {
+    Texture2D img_tex = LoadTexture(filepath);
+   	SetTextureFilter(img_tex, TEXTURE_FILTER_BILINEAR);
+    return img_tex;
 }
