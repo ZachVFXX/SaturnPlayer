@@ -22,7 +22,9 @@ yt-dlp \
   --embed-metadata \
   --embed-thumbnail \
   --add-metadata \
-   "https://music.youtube.com/playlist?list=OLAK5uy_nhWRCTbsDHSN4WgNAf0loQDcuuqrCLBn8"
+  --no-progress \
+  --print after_move:filepath \
+   "https://music.youtube.com/watch?v=QTHV3cuXnRY&si=lr7zSuqr-e8erE7b"
 (Query the playlist is the only reliable way to get all the tag)   
 
 Using: 

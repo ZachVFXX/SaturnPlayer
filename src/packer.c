@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
-#define ASSETS_PATH "../assets/fonts/Poppins/"
+#define ASSETS_PATH "../assets/imgs/"
 
 
 Font LoadFontWithExtendedUnicode(const char* fileName, int fontSize) {

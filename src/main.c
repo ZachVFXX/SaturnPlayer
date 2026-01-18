@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include "core/core.c"
 #include "core/audio_raylib.c"
+#include "ctype.h"
 
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
@@ -16,6 +17,8 @@
 #include "utils/vector.h"
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
+
+#include "command.c"
 
 #include "metadata.c"
 
@@ -30,12 +33,15 @@
 
 #include "assets/Poppins_Regular.h"
 #include "assets/Poppins_SemiBold.h"
-#include "assets/loop.h"
 #include "assets/next.h"
 #include "assets/pause.h"
 #include "assets/play.h"
 #include "assets/previous.h"
 #include "assets/shuffle.h"
+#include "assets/repeat.h"
+#include "assets/repeat_on.h"
+#include "assets/repeat_on_one.h"
+#include "assets/shuffle_on.h"
 
 #define COLOR_BACKGROUND (Clay_Color) {20, 20, 20, 255}
 #define COLOR_BACKGROUND_LIGHT (Clay_Color) {40, 40, 40, 255}
@@ -62,10 +68,12 @@ typedef enum {
 
 Texture2D texture2DFromImageBuffer(ImageBuffer* img);
 void renderSong(Song* song);
+void renderSearchResult(SearchResult* result, int index);
 Song* createSong(mem_arena* arena, char* filepath);
-
+bool songMatchesSearch(Song* song, const char* query);
 UiTimeString timeStringFromFloat(mem_arena* arena, float seconds);
 Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height);
+void togglePlayPause(void);
 
 // CLAY RENDER
 void HandleClayErrors(Clay_ErrorData errorData);
@@ -80,7 +88,8 @@ void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointer
 void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
 void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
 void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
-
+void HandleSearchInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
+void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData);
 
 // Player
 Music music = {0};
@@ -92,14 +101,18 @@ bool debugEnabled = false;
 Tabs currentTab = TABS_QUEUE;
 static int next_song_id = 0;
 static Core *core = {0};
+#define MAX_SEARCH_LENGTH 256
+char searchQuery[MAX_SEARCH_LENGTH] = {0};
+bool searchBarActive = false;
+char youtubeSearchQuery[MAX_SEARCH_LENGTH] = {0};
 
-void togglePlayPause() {
-    CorePlaybackState curr_core = core_get_state(core);
-    if (curr_core == CORE_PLAYING)
-        core_send_command(core, (CoreCommand){ .type = CMD_PAUSE });
-    else if (curr_core == CORE_PAUSED)
-        core_send_command(core, (CoreCommand){ .type = CMD_RESUME });
-}
+const char* working_path;
+
+YoutubeSearch* yt_search = NULL;
+YoutubeDownload* yt_download = NULL;
+
+SearchResults* currentSearchResults = NULL;
+mem_arena* search_arena = NULL;
 
 int main(int argc, char** argv) {
     // Clay initialisation
@@ -120,12 +133,16 @@ int main(int argc, char** argv) {
 
     core_start(core);
 
-    Texture2D loop_tex = createTextureFromMemory(LOOP_DATA, LOOP_FORMAT, LOOP_WIDTH, LOOP_HEIGHT);
     Texture2D next_tex = createTextureFromMemory(NEXT_DATA, NEXT_FORMAT, NEXT_WIDTH, NEXT_HEIGHT);
     Texture2D previous_tex = createTextureFromMemory(PREVIOUS_DATA, PREVIOUS_FORMAT, PREVIOUS_WIDTH, PREVIOUS_HEIGHT);
     Texture2D play_tex = createTextureFromMemory(PLAY_DATA, PLAY_FORMAT, PLAY_WIDTH, PLAY_HEIGHT);
     Texture2D pause_tex = createTextureFromMemory(PAUSE_DATA, PAUSE_FORMAT, PAUSE_WIDTH, PAUSE_HEIGHT);
     Texture2D shuffle_tex = createTextureFromMemory(SHUFFLE_DATA, SHUFFLE_FORMAT, SHUFFLE_WIDTH, SHUFFLE_HEIGHT);
+    Texture2D shuffle_on_tex = createTextureFromMemory(SHUFFLE_ON_DATA, SHUFFLE_ON_FORMAT, SHUFFLE_ON_WIDTH, SHUFFLE_ON_HEIGHT);
+    Texture2D repeat_tex = createTextureFromMemory(REPEAT_DATA, REPEAT_FORMAT, REPEAT_WIDTH, REPEAT_HEIGHT);
+    Texture2D repeat_on_tex = createTextureFromMemory(REPEAT_ON_DATA, REPEAT_ON_FORMAT, REPEAT_ON_WIDTH, REPEAT_ON_HEIGHT);
+    Texture2D repeat_on_one_tex = createTextureFromMemory(REPEAT_ON_ONE_DATA, REPEAT_ON_ONE_FORMAT, REPEAT_ON_ONE_WIDTH, REPEAT_ON_ONE_HEIGHT);
+
 
     Font poppins_regular = LoadFont_Poppins_Regular();
     Font poppins_semibold = LoadFont_Poppins_SemiBold();
@@ -142,15 +159,15 @@ int main(int argc, char** argv) {
 
     song_arena = arena_create(MiB(64), KiB(1));
     ui_arena = arena_create(KiB(64), KiB(1));
+    search_arena = arena_create(MiB(4), KiB(1));
 
     for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
 
-    char* working_path;
 
     if (argc > 1 || IsPathFile(argv[1])) {
         working_path = argv[1];
     } else {
-        working_path = "/home/zach/.pymusicterm/musics/";
+        working_path = ".";
     }
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
@@ -170,33 +187,74 @@ int main(int argc, char** argv) {
 
     while (!WindowShouldClose())
     {
-        if (IsKeyPressed(KEY_S)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_NEXT });
-        if (IsKeyPressed(KEY_W)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_PREV });
-        //if (IsKeyPressed(KEY_R)) core_send_command(core, (CoreCommand){ .type = CMD_QUEUE_REMOVE });
-        if (IsKeyPressed(KEY_ENTER)) core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
-        if (IsKeyPressed(KEY_D)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = 5 });
-        if (IsKeyPressed(KEY_A)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = -5 });
-        if (IsKeyPressed(KEY_SPACE)) togglePlayPause();
 
+        if (searchBarActive) {
+            int key = GetCharPressed();
+            while (key > 0) {
+                if ((key >= 32) && (key <= 125) && (strlen(searchQuery) < MAX_SEARCH_LENGTH - 1)) {
+                    size_t len = strlen(searchQuery);
+                    searchQuery[len] = (char)key;
+                    searchQuery[len + 1] = '\0';
+                }
+                key = GetCharPressed();
+            }
+
+            if (IsKeyPressed(KEY_BACKSPACE)) {
+                size_t len = strlen(searchQuery);
+                if (len > 0) {
+                    searchQuery[len - 1] = '\0';
+                }
+            }
+
+            if (IsKeyPressed(KEY_ESCAPE)) {
+                searchBarActive = false;
+            }
+        } else {
+            if (IsKeyPressed(KEY_S)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_NEXT });
+            if (IsKeyPressed(KEY_W)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_PREV });
+            //if (IsKeyPressed(KEY_R)) core_send_command(core, (CoreCommand){ .type = CMD_QUEUE_REMOVE });
+            if (IsKeyPressed(KEY_ENTER)) core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
+            if (IsKeyPressed(KEY_D)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = 5 });
+            if (IsKeyPressed(KEY_A)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = -5 });
+            if (IsKeyPressed(KEY_SPACE)) togglePlayPause();
+
+            if (IsKeyPressed(KEY_H)) {
+                clayDebugEnabled = !clayDebugEnabled;
+                Clay_SetDebugModeEnabled(clayDebugEnabled);
+            }
+
+            if (IsKeyPressed(KEY_F3)) {
+                debugEnabled = !debugEnabled;
+            }
+        }
+
+        if (IsKeyPressed(KEY_ENTER) && searchBarActive && strlen(searchQuery) > 0) {
+            if (!yt_search) {
+                arena_clear(search_arena);
+                yt_search = youtube_search(search_arena, searchQuery, 10);
+            }
+        }
+
+        if (yt_search && youtube_search_done(yt_search)) {
+            currentSearchResults = youtube_search_results(yt_search);
+            yt_search = NULL;
+        }
+
+        if (yt_download && youtube_download_done(yt_download)) {
+            TraceLog(LOG_INFO, "Successfuly downloaded %s to %s.", yt_download->url, yt_download->final_path);
+            Song* song = createSong(song_arena, yt_download->final_path);
+            core_send_command(core, (CoreCommand) { .type = CMD_QUEUE_ADD, .song = song});
+            core_send_command(core, (CoreCommand) { .type = CMD_PLAY_SONG, .song = song});
+            yt_download = NULL;
+        }
 
         if (reinitializeClay) {
-            printf("REINITIALIZED\n");
             Clay_SetMaxElementCount(8192);
             totalMemorySize = Clay_MinMemorySize();
             clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
             Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)GetScreenWidth(), (float)GetScreenHeight() }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
             Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
             reinitializeClay = false;
-        }
-
-        // CLAY DEBUG MODE
-        if (IsKeyPressed(KEY_H)) {
-            clayDebugEnabled = !clayDebugEnabled;
-            Clay_SetDebugModeEnabled(clayDebugEnabled);
-        }
-
-        if (IsKeyPressed(KEY_F3)) {
-            debugEnabled = !debugEnabled;
         }
 
         if (IsFileDropped()) {
@@ -241,28 +299,119 @@ int main(int argc, char** argv) {
         CLAY(CLAY_ID("WINDOW"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_BACKGROUND}) {
 
             CLAY(CLAY_ID("TABS_CONTAINER"), { .layout = { .layoutDirection = CLAY_LEFT_TO_RIGHT, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (currentTab == TABS_QUEUE) ? (Clay_Hovered() ? COLOR_ORANGE : COLOR_BLUE) : (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_QUEUE);
                     CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
                 }
-
-                CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
+                CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (currentTab == TABS_SEARCH) ? (Clay_Hovered() ? COLOR_ORANGE : COLOR_BLUE) : (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_SEARCH);
                     CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                }
+                CLAY(CLAY_ID("SEARCH_BAR"), {
+                    .layout = {
+                        .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER},
+                        .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)},
+                        .padding = CLAY_PADDING_ALL(8)
+                    },
+                    .backgroundColor = searchBarActive ? COLOR_BLUE : COLOR_BACKGROUND
+                }) {
+                    Clay_OnHover(HandleSearchInteraction, NULL);
+
+                    // Display search text or placeholder
+                    if (strlen(searchQuery) > 0 || searchBarActive) {
+                        // Use ui_arena to allocate the display text buffer so it persists for the frame
+                        char* displayText = arena_push(ui_arena, MAX_SEARCH_LENGTH + 10, false);
+                        snprintf(displayText, MAX_SEARCH_LENGTH + 10, "%s%s",
+                                searchQuery,
+                                searchBarActive ? "_" : "");
+
+                        Clay_String searchText = {
+                            .chars = displayText,
+                            .length = strlen(displayText),
+                            .isStaticallyAllocated = false
+                        };
+                        CLAY_TEXT(searchText, TEXT_CONFIG_24);
+                    } else {
+                        CLAY_TEXT(CLAY_STRING("Click to search..."), CLAY_TEXT_CONFIG({
+                            .fontSize = 20,
+                            .textColor = {150,150,150,255}
+                        }));
+                    }
                 }
             }
 
             if (currentTab == TABS_QUEUE) {
                 CLAY(CLAY_ID("QUEUE_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND}) {
+                    // Display search results
                     size_t count = core_get_queue_count(core);
+                    size_t matchCount = 0;
+
                     for (size_t i = 0; i < count; i++) {
                         Song *song = core_get_song_at(core, i);
-                        renderSong(song);
+                        if (songMatchesSearch(song, searchQuery)) {
+                            renderSong(song);
+                            matchCount++;
+                        }
+                    }
+
+                    // Show message if no results
+                    if (matchCount == 0 && strlen(searchQuery) > 0) {
+                        CLAY(CLAY_ID("NO_RESULTS"), {
+                            .layout = {
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                                .padding = CLAY_PADDING_ALL(32)
+                            }
+                        }) {
+                            CLAY_TEXT(CLAY_STRING("No songs found"), TEXT_CONFIG_24_BOLD);
+                        }
                     }
                 }
             } else if (currentTab == TABS_SEARCH) {
-            CLAY(CLAY_ID("SEARCH_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = {255,255,255,255} }));
+                CLAY(CLAY_ID("SEARCH_CONTAINER"), {
+                    .layout = {
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                        .childGap = 2
+                    },
+                    .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() },
+                    .backgroundColor = COLOR_BACKGROUND
+                }) {
+                    if (currentSearchResults && currentSearchResults->count > 0) {
+                        for (int i = 0; i < currentSearchResults->count; i++) {
+                            renderSearchResult(&currentSearchResults->results[i], i);
+                        }
+                    } else if (yt_search == NULL) {
+                        CLAY(CLAY_ID("NO_RESULTS"), {
+                            .layout = {
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                                .padding = CLAY_PADDING_ALL(32)
+                            }
+                        }) {
+                        CLAY_TEXT(CLAY_STRING("Search and Press Enter"), TEXT_CONFIG_24_BOLD);
+                        }
+                    } else if (!youtube_search_done(yt_search)) {
+                        CLAY(CLAY_ID("NO_RESULTS"), {
+                            .layout = {
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                                .padding = CLAY_PADDING_ALL(32)
+                            }
+                        }) {
+                        CLAY_TEXT(CLAY_STRING("Searching..."), TEXT_CONFIG_24_BOLD);
+                        }
+                    } else if (strlen(searchQuery) > 0) {
+                        CLAY(CLAY_ID("NO_RESULTS"), {
+                            .layout = {
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                                .padding = CLAY_PADDING_ALL(32)
+                            }
+                        }) {
+                        CLAY_TEXT(CLAY_STRING("No results found"), TEXT_CONFIG_24_BOLD);
+                        }
+                    }
                 }
             }
 
@@ -308,7 +457,14 @@ int main(int argc, char** argv) {
                         }
                         CLAY(CLAY_ID("LOOP_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = core_get_loop_mode(core) ? (Clay_Hovered() ? COLOR_ORANGE : COLOR_BLUE) : (Clay_Hovered() ? COLOR_ORANGE : COLOR_BACKGROUND)}) {
                             Clay_OnHover(HandleLoopInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &loop_tex }, .aspectRatio = { 1 }}) {}
+                            void* img;
+                            switch (core_get_loop_mode(core)) {
+                                case LOOP_NONE: img = &repeat_tex; break;
+                                case LOOP_ONE: img = &repeat_on_one_tex; break;
+                                case LOOP_ALL: img = &repeat_on_tex; break;
+                                default: TraceLog(LOG_ERROR, "Loop mode cannot be other thant LOOP_NONE, ALL or ONE"); break;
+                            }
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = img }, .aspectRatio = { 1 }}) {}
                         }
                     }
                 }
@@ -341,7 +497,7 @@ int main(int argc, char** argv) {
         BeginDrawing();
         ClearBackground(CLAY_COLOR_TO_RAYLIB_COLOR(COLOR_BACKGROUND));
         Clay_Raylib_Render(renderCommands, fonts);
-        if (true) DrawFPS(0, 0);
+        if (debugEnabled) DrawFPS(0, 0);
         EndDrawing();
 
         // RESET UI ARENA FOR THE NEXT PASS
@@ -353,12 +509,15 @@ int main(int argc, char** argv) {
         UnloadTexture(*t);
     }
 
-    UnloadTexture(loop_tex);
     UnloadTexture(play_tex);
     UnloadTexture(next_tex);
     UnloadTexture(previous_tex);
     UnloadTexture(pause_tex);
     UnloadTexture(shuffle_tex);
+    UnloadTexture(shuffle_on_tex);
+    UnloadTexture(repeat_tex);
+    UnloadTexture(repeat_on_tex);
+    UnloadTexture(repeat_on_one_tex);
 
     core_stop(core);
     core_destroy(core);
@@ -416,7 +575,6 @@ Texture2D texture2DFromImageBuffer(ImageBuffer* img)
         return (Texture2D){0};
 
     const char* ext = get_file_extension_from_mime(img->mime_type);
-    printf("%s\n", ext);
     Image image = LoadImageFromMemory(
         ext,
         img->data,
@@ -529,6 +687,7 @@ void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
 
     if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME && mouseOver) {
         music_slider.active = true;
+        searchBarActive = false;
     }
 
     if (music_slider.active &&
@@ -554,10 +713,21 @@ void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
     }
 }
 
+void HandleSearchInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
+    (void)elementId;
+    (void)userData;
+
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME) {
+        searchBarActive = !searchBarActive;
+        TraceLog(LOG_INFO, "Search bar active: %d", searchBarActive);
+    }
+}
+
 void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     Song* song = (Song*)userData;
 
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        searchBarActive = false;
         Song* curr_selected = core_get_current_song_selected(core);
         if (curr_selected->id == song->id) {
             core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
@@ -569,8 +739,8 @@ void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 
 void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData){
     (void)userData;
-
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        searchBarActive = false;
         core_send_command(core, (CoreCommand){ .type = CMD_TOGGLE_SHUFFLE, .shuffle_enabled = !queue_is_shuffle_enabled(&core->queue)});
     }
 }
@@ -578,6 +748,7 @@ void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointer
 void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId; (void)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        searchBarActive = false;
         core_send_command(core, (CoreCommand) { .type = CMD_PLAY_PREV });
     }
 }
@@ -585,6 +756,7 @@ void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointe
 void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId; (void)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        searchBarActive = false;
         core_send_command(core, (CoreCommand) { .type = CMD_PLAY_NEXT });
     }
 }
@@ -592,6 +764,7 @@ void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId; (void)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        searchBarActive = false;
         if (core_get_state(core) == CORE_PLAYING) {
             core_send_command(core, (CoreCommand) { .type = CMD_PAUSE });
         } else {
@@ -604,12 +777,13 @@ void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
     (void)elementId;
     (void)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+        searchBarActive = false;
         LoopMode curr_mode = core_get_loop_mode(core);
         LoopMode new_mode = LOOP_NONE;
         switch (curr_mode) {
-            case LOOP_NONE: new_mode = LOOP_ONE;  break;
-            case LOOP_ONE:  new_mode = LOOP_ALL;  break;
-            case LOOP_ALL:  new_mode = LOOP_NONE; break;
+            case LOOP_NONE: new_mode = LOOP_ALL;  break;
+            case LOOP_ONE:  new_mode = LOOP_NONE;  break;
+            case LOOP_ALL:  new_mode = LOOP_ONE; break;
         }
         core_send_command(core, (CoreCommand) { .type = CMD_SET_LOOP_MODE, .loop_mode = new_mode });
     }
@@ -620,7 +794,73 @@ void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointe
     Tabs new_tab = (Tabs)(uintptr_t)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
         currentTab = new_tab;
+        searchBarActive = false;
         TraceLog(LOG_INFO, "Current tab set to %d", currentTab);
+    }
+}
+void renderSearchResult(SearchResult* result, int index) {
+    // Similar to renderSong but for search results
+    CLAY_AUTO_ID({
+        .layout = {
+            .childAlignment = {.y = CLAY_ALIGN_Y_CENTER},
+            .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)},
+            .childGap = 8
+        },
+        .backgroundColor = Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT
+    }) {
+        Clay_OnHover(HandleSearchResultInteraction, result);
+
+        // Index/Number
+        CLAY_AUTO_ID({
+            .layout = {
+                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                .sizing = { .width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(8)
+            }
+        }) {
+            char* index_str = arena_push(ui_arena, 16, false);
+            snprintf(index_str, 16, "#%d", index + 1);
+            Clay_String str = { .chars = index_str, .length = strlen(index_str), .isStaticallyAllocated = false };
+            CLAY_TEXT(str, TEXT_CONFIG_24_BOLD);
+        }
+
+        // Title and artist
+        CLAY_AUTO_ID({
+            .layout = {
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(8),
+                .childGap = 8
+            }
+        }) {
+            Clay_String title_str = { .chars = result->title, .length = strlen(result->title), .isStaticallyAllocated = false };
+            CLAY_TEXT(title_str, TEXT_CONFIG_24_BOLD);
+
+            Clay_String artist_str = { .chars = result->artist, .length = strlen(result->artist), .isStaticallyAllocated = false };
+            CLAY_TEXT(artist_str, TEXT_CONFIG_24);
+        }
+
+        // Duration
+        CLAY_AUTO_ID({
+            .layout = {
+                .childAlignment = { .x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_CENTER },
+                .sizing = { .width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(8)
+            }
+        }) {
+            Clay_String duration_str = { .chars = result->duration, .length = strlen(result->duration), .isStaticallyAllocated = false };
+            CLAY_TEXT(duration_str, TEXT_CONFIG_24);
+        }
+    }
+}
+
+// Handler for search result interaction
+void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
+    SearchResult* result = (SearchResult*)userData;
+    (void)elementId;
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME) {
+        searchBarActive = false;
+        yt_download = youtube_download(search_arena, result->url, working_path);
     }
 }
 
@@ -635,4 +875,54 @@ Texture2D createTextureFromMemory(unsigned char* data, int format, int width, in
     Texture2D img_tex = LoadTextureFromImage(image);
    	SetTextureFilter(img_tex, TEXTURE_FILTER_BILINEAR);
     return img_tex;
+}
+
+bool songMatchesSearch(Song* song, const char* query) {
+    if (query == NULL || strlen(query) == 0) return true;
+
+    char lowerQuery[MAX_SEARCH_LENGTH];
+    char lowerTitle[256];
+    char lowerArtist[256];
+    char lowerAlbum[256];
+
+    // Convert query to lowercase
+    size_t queryLen = strlen(query);
+    for (size_t i = 0; i < queryLen && i < MAX_SEARCH_LENGTH - 1; i++) {
+        lowerQuery[i] = tolower((unsigned char)query[i]);
+    }
+    lowerQuery[queryLen] = '\0';
+
+    // Convert title to lowercase
+    size_t titleLen = strlen(song->title);
+    for (size_t i = 0; i < titleLen && i < 255; i++) {
+        lowerTitle[i] = tolower((unsigned char)song->title[i]);
+    }
+    lowerTitle[titleLen] = '\0';
+
+    // Convert artist to lowercase
+    size_t artistLen = strlen(song->artists);
+    for (size_t i = 0; i < artistLen && i < 255; i++) {
+        lowerArtist[i] = tolower((unsigned char)song->artists[i]);
+    }
+    lowerArtist[artistLen] = '\0';
+
+    // Convert album to lowercase
+    size_t albumLen = strlen(song->album);
+    for (size_t i = 0; i < albumLen && i < 255; i++) {
+        lowerAlbum[i] = tolower((unsigned char)song->album[i]);
+    }
+    lowerAlbum[albumLen] = '\0';
+
+    // Check if query is in title, artist, or album
+    return (strstr(lowerTitle, lowerQuery) != NULL ||
+            strstr(lowerArtist, lowerQuery) != NULL ||
+            strstr(lowerAlbum, lowerQuery) != NULL);
+}
+
+void togglePlayPause() {
+    CorePlaybackState curr_core = core_get_state(core);
+    if (curr_core == CORE_PLAYING)
+        core_send_command(core, (CoreCommand){ .type = CMD_PAUSE });
+    else if (curr_core == CORE_PAUSED)
+        core_send_command(core, (CoreCommand){ .type = CMD_RESUME });
 }
