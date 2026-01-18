@@ -153,7 +153,53 @@ static const GDBusInterfaceVTable vtable = {
     .set_property = handle_set_property
 };
 
-// ... existing mpris_set_status, on_bus_acquired, etc ...
+void mpris_emit_seeked(gint64 position_usec)
+{
+    if (!connection) return;
+
+    g_dbus_connection_emit_signal(
+        connection,
+        NULL,
+        "/org/mpris/MediaPlayer2",
+        "org.mpris.MediaPlayer2.Player",
+        "Seeked",
+        g_variant_new("(x)", position_usec),
+        NULL
+    );
+}
+
+
+void mpris_update_position(gint64 position_usec)
+{
+    if (!connection) return;
+
+    GVariantBuilder props;
+    g_variant_builder_init(&props, G_VARIANT_TYPE("a{sv}"));
+
+    g_variant_builder_add(
+        &props,
+        "{sv}",
+        "Position",
+        g_variant_new_int64(position_usec)
+    );
+
+    g_dbus_connection_emit_signal(
+        connection,
+        NULL,
+        "/org/mpris/MediaPlayer2",
+        "org.freedesktop.DBus.Properties",
+        "PropertiesChanged",
+        g_variant_new(
+            "(sa{sv}as)",
+            "org.mpris.MediaPlayer2.Player",
+            &props,
+            NULL
+        ),
+        NULL
+    );
+}
+
+
 void mpris_set_status(PlaybackStatus status) {
    current_status = status;
    if (!connection) return;

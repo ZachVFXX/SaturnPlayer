@@ -1,0 +1,65 @@
+#pragma once
+#include <stdbool.h>
+#include <pthread.h>
+#include "song.h"
+#include "queue.h"
+
+typedef struct Core Core;
+typedef struct AudioBackend AudioBackend;
+
+typedef enum {
+    CORE_STOPPED = 0,
+    CORE_PLAYING,
+    CORE_PAUSED
+} CorePlaybackState;
+
+typedef enum {
+    CMD_QUEUE_ADD,
+    CMD_PLAY,
+    CMD_PLAY_SELECTED,      // Play the currently selected song
+    CMD_PLAY_SONG,          // Play a specific song by pointer
+    CMD_PLAY_INDEX,         // Play a specific song by index
+    CMD_PAUSE,
+    CMD_RESUME,
+    CMD_STOP,
+    CMD_PLAY_NEXT,
+    CMD_PLAY_PREV,
+    CMD_SELECT_NEXT,        // Select next song (UI navigation)
+    CMD_SELECT_PREV,        // Select previous song (UI navigation)
+    CMD_SELECT_INDEX,       // Select song by index
+    CMD_SELECT_SONG,        // Select song by pointer
+    CMD_SEEK_ABS,
+    CMD_SEEK_REL,
+    CMD_TOGGLE_SHUFFLE,
+    CMD_SET_LOOP_MODE,
+} CoreCommandType;
+
+typedef struct {
+    CoreCommandType type;
+    union {
+        Song *song;
+        double seek_seconds;
+        size_t index;
+        bool shuffle_enabled;
+        LoopMode loop_mode;
+    };
+} CoreCommand;
+
+/* ===================== Core lifecycle ===================== */
+Core *core_create(AudioBackend *audio);
+void  core_start(Core *core);
+void  core_stop(Core *core);
+void  core_destroy(Core *core);
+
+void core_send_command(Core *core, CoreCommand cmd);
+
+CorePlaybackState core_get_state(Core *core);
+Song *core_get_current_song_playing(Core *core);
+Song *core_get_current_song_selected(Core *core);
+
+size_t core_get_queue_count(Core *core);
+Song *core_get_queue_item(Core *core, size_t index);
+bool core_is_shuffle_enabled(Core *core);
+LoopMode core_get_loop_mode(Core *core);
+static void core_check_song_ended(Core* core);
+Song* core_get_song_at(Core *core, size_t index);

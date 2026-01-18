@@ -4,14 +4,14 @@ TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with cus
 
 build test command : 
 gcc -std=c99 -Wall -Wextra -Werror -fsanitize=address -g \
-    main.c mpris/mpris.c \
+    main.c \
     -o main \
     -I/usr/local/include \
     $(pkg-config --cflags gio-2.0) \
     -L../raylib/src -lraylib \
     -L../id3v2lib/src -lid3v2lib \
     $(pkg-config --libs gio-2.0) \
-    -lGL -lX11 -lm -lpthread -ldl -lrt && ./main /home/zach/.pymusicterm/musics/
+      -lGL -lX11 -lm -lpthread -ldl -lrt && ./main 
 
 
 yt-dlp \

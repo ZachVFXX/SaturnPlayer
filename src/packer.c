@@ -5,7 +5,6 @@
 #define ASSETS_PATH "../assets/fonts/Poppins/"
 
 
-// Load a comprehensive range of characters
 Font LoadFontWithExtendedUnicode(const char* fileName, int fontSize) {
     #define MAX_GLYPHS 2048
     int *codepoints = (int*)malloc(MAX_GLYPHS * sizeof(int));
