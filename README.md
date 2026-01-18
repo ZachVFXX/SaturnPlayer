@@ -31,3 +31,4 @@ Using:
 https://github.com/larsbs/id3v2lib 
 https://github.com/raysan5/raylib
 https://github.com/nicbarker/clay
+https://fonts.google.com/icons

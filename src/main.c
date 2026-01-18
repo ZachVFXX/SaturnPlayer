@@ -316,10 +316,7 @@ int main(int argc, char** argv) {
                     .backgroundColor = searchBarActive ? COLOR_BLUE : COLOR_BACKGROUND
                 }) {
                     Clay_OnHover(HandleSearchInteraction, NULL);
-
-                    // Display search text or placeholder
                     if (strlen(searchQuery) > 0 || searchBarActive) {
-                        // Use ui_arena to allocate the display text buffer so it persists for the frame
                         char* displayText = arena_push(ui_arena, MAX_SEARCH_LENGTH + 10, false);
                         snprintf(displayText, MAX_SEARCH_LENGTH + 10, "%s%s",
                                 searchQuery,
@@ -342,7 +339,6 @@ int main(int argc, char** argv) {
 
             if (currentTab == TABS_QUEUE) {
                 CLAY(CLAY_ID("QUEUE_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND}) {
-                    // Display search results
                     size_t count = core_get_queue_count(core);
                     size_t matchCount = 0;
 
@@ -354,7 +350,6 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    // Show message if no results
                     if (matchCount == 0 && strlen(searchQuery) > 0) {
                         CLAY(CLAY_ID("NO_RESULTS"), {
                             .layout = {
@@ -490,10 +485,8 @@ int main(int argc, char** argv) {
             }
         }
 
-        // All clay layouts are declared between Clay_BeginLayout and Clay_EndLayout
         Clay_RenderCommandArray renderCommands = Clay_EndLayout();
 
-        // RAYLIB drawing of the render commands
         BeginDrawing();
         ClearBackground(CLAY_COLOR_TO_RAYLIB_COLOR(COLOR_BACKGROUND));
         Clay_Raylib_Render(renderCommands, fonts);
@@ -799,7 +792,6 @@ void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointe
     }
 }
 void renderSearchResult(SearchResult* result, int index) {
-    // Similar to renderSong but for search results
     CLAY_AUTO_ID({
         .layout = {
             .childAlignment = {.y = CLAY_ALIGN_Y_CENTER},
@@ -810,7 +802,6 @@ void renderSearchResult(SearchResult* result, int index) {
     }) {
         Clay_OnHover(HandleSearchResultInteraction, result);
 
-        // Index/Number
         CLAY_AUTO_ID({
             .layout = {
                 .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
@@ -824,7 +815,6 @@ void renderSearchResult(SearchResult* result, int index) {
             CLAY_TEXT(str, TEXT_CONFIG_24_BOLD);
         }
 
-        // Title and artist
         CLAY_AUTO_ID({
             .layout = {
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -840,7 +830,6 @@ void renderSearchResult(SearchResult* result, int index) {
             CLAY_TEXT(artist_str, TEXT_CONFIG_24);
         }
 
-        // Duration
         CLAY_AUTO_ID({
             .layout = {
                 .childAlignment = { .x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_CENTER },
@@ -854,7 +843,6 @@ void renderSearchResult(SearchResult* result, int index) {
     }
 }
 
-// Handler for search result interaction
 void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     SearchResult* result = (SearchResult*)userData;
     (void)elementId;
@@ -913,7 +901,6 @@ bool songMatchesSearch(Song* song, const char* query) {
     }
     lowerAlbum[albumLen] = '\0';
 
-    // Check if query is in title, artist, or album
     return (strstr(lowerTitle, lowerQuery) != NULL ||
             strstr(lowerArtist, lowerQuery) != NULL ||
             strstr(lowerAlbum, lowerQuery) != NULL);

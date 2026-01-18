@@ -131,7 +131,6 @@ char* get_displayable_text(mem_arena* arena, ID3v2_TextFrame* f)
 
     mem_arena* scratch = arena_create(MiB(1), KiB(1));
 
-    // Allocate output buffer (generous size for UTF-8)
     size_t out_capacity = inbytesleft * 4 + 1;
     char* scratch_out = arena_push(scratch, out_capacity, false);
     char* outbuf = scratch_out;
