@@ -3,11 +3,13 @@
 #include "cmdq.c"
 #include "audio_backend.h"
 #include "queue.h"
+#include <raylib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 struct Core {
     pthread_t thread;
@@ -104,7 +106,16 @@ static void core_handle_command(Core *c, CoreCommand *cmd)
         c->audio->vtable->seek(c->audio, cmd->seek_seconds);
         break;
     case CMD_SEEK_REL:
-        c->audio->vtable->seek(c->audio, c->audio->vtable->position(c->audio) + cmd->seek_seconds);
+        if ((c->audio->vtable->position(c->audio) + cmd->seek_seconds) > c->audio->vtable->get_length(c->audio)) {
+            if (queue_play_next(&c->queue))
+                core_play_current(c);
+            break;
+        } else if ((c->audio->vtable->position(c->audio) + cmd->seek_seconds) < 0.0) {
+            if (queue_play_prev(&c->queue))
+                core_play_current(c);
+            break;
+        }
+        c->audio->vtable->seek(c->audio, (c->audio->vtable->position(c->audio) + cmd->seek_seconds));
         break;
     case CMD_TOGGLE_SHUFFLE:
         queue_set_shuffle(&c->queue, cmd->shuffle_enabled);
@@ -126,7 +137,7 @@ static void *core_thread_fn(void *arg)
         // Process all pending commands
         while (cmdq_pop(&c->cmdq, &cmd)) {
             pthread_mutex_lock(&c->mutex);
-            printf("[CORE] Handling command %d\n", cmd.type);
+            TraceLog(LOG_INFO, "[CORE] Handling command %d.", cmd.type);
             core_handle_command(c, &cmd);
             pthread_mutex_unlock(&c->mutex);
         }

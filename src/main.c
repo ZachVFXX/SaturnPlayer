@@ -122,9 +122,9 @@ int main(int argc, char** argv) {
 
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Music Player");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    SetWindowState(FLAG_MSAA_4X_HINT);
+    //SetWindowState(FLAG_MSAA_4X_HINT);
+    SetTraceLogLevel(LOG_WARNING);
     InitAudioDevice();
-    SetTargetFPS(240);
 
     vectorInit(&covers_textures, sizeof(Texture2D), 64);
 
@@ -143,6 +143,7 @@ int main(int argc, char** argv) {
     Texture2D repeat_on_tex = createTextureFromMemory(REPEAT_ON_DATA, REPEAT_ON_FORMAT, REPEAT_ON_WIDTH, REPEAT_ON_HEIGHT);
     Texture2D repeat_on_one_tex = createTextureFromMemory(REPEAT_ON_ONE_DATA, REPEAT_ON_ONE_FORMAT, REPEAT_ON_ONE_WIDTH, REPEAT_ON_ONE_HEIGHT);
 
+    SetWindowIcon(LoadImageFromTexture(play_tex));
 
     Font poppins_regular = LoadFont_Poppins_Regular();
     Font poppins_semibold = LoadFont_Poppins_SemiBold();
@@ -199,7 +200,7 @@ int main(int argc, char** argv) {
                 key = GetCharPressed();
             }
 
-            if (IsKeyPressed(KEY_BACKSPACE)) {
+            if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
                 size_t len = strlen(searchQuery);
                 if (len > 0) {
                     searchQuery[len - 1] = '\0';
@@ -210,13 +211,13 @@ int main(int argc, char** argv) {
                 searchBarActive = false;
             }
         } else {
-            if (IsKeyPressed(KEY_S)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_NEXT });
-            if (IsKeyPressed(KEY_W)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_PREV });
+            if (IsKeyPressed(KEY_S) || IsKeyPressedRepeat(KEY_S)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_NEXT });
+            if (IsKeyPressed(KEY_W) || IsKeyPressedRepeat(KEY_W)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_PREV });
             //if (IsKeyPressed(KEY_R)) core_send_command(core, (CoreCommand){ .type = CMD_QUEUE_REMOVE });
-            if (IsKeyPressed(KEY_ENTER)) core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
-            if (IsKeyPressed(KEY_D)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = 5 });
-            if (IsKeyPressed(KEY_A)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = -5 });
-            if (IsKeyPressed(KEY_SPACE)) togglePlayPause();
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressedRepeat(KEY_ENTER)) core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
+            if (IsKeyPressed(KEY_D) || IsKeyPressedRepeat(KEY_D)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = 5 });
+            if (IsKeyPressed(KEY_A) || IsKeyPressedRepeat(KEY_A)) core_send_command(core, (CoreCommand){ .type = CMD_SEEK_REL, .seek_seconds = -5 });
+            if (IsKeyPressed(KEY_SPACE) || IsKeyPressedRepeat(KEY_SPACE)) togglePlayPause();
 
             if (IsKeyPressed(KEY_H)) {
                 clayDebugEnabled = !clayDebugEnabled;
@@ -292,6 +293,12 @@ int main(int argc, char** argv) {
                 if (music_slider.value < 0.f) music_slider.value = 0.f;
                 if (music_slider.value > 1.f) music_slider.value = 1.f;
             }
+        }
+
+        if (core_get_current_song_playing(core)) {
+            Song* song = core_get_current_song_playing(core);
+            const char* title = TextFormat("%s - %s - %s", song->title, song->artists, song->album);
+            SetWindowTitle(title);
         }
 
         // START OF THE LAYOUT
@@ -457,7 +464,7 @@ int main(int argc, char** argv) {
                                 case LOOP_NONE: img = &repeat_tex; break;
                                 case LOOP_ONE: img = &repeat_on_one_tex; break;
                                 case LOOP_ALL: img = &repeat_on_tex; break;
-                                default: TraceLog(LOG_ERROR, "Loop mode cannot be other thant LOOP_NONE, ALL or ONE"); break;
+                                default: img = &repeat_on_one_tex; break;
                             }
                             CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = img }, .aspectRatio = { 1 }}) {}
                         }

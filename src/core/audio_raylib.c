@@ -8,17 +8,18 @@ typedef struct {
     bool loaded;
 } RaylibAudio;
 
-static bool rl_load(struct AudioBackend *ab, const char *path);
-static void rl_play(struct AudioBackend *ab);
-static void rl_pause(struct AudioBackend *ab);
-static void rl_stop(struct AudioBackend *ab);
-static void rl_seek(struct AudioBackend *ab, double seconds);
-static double rl_position(struct AudioBackend *ab);
-static bool rl_is_playing(struct AudioBackend *ab);
-static void rl_update(struct AudioBackend *ab);
-static void rl_resume(struct AudioBackend *ab);
-static bool rl_is_loaded(struct AudioBackend *ab);
-static bool rl_is_finished(struct AudioBackend *ab);
+static bool rl_load(AudioBackend *ab, const char *path);
+static void rl_play(AudioBackend *ab);
+static void rl_pause(AudioBackend *ab);
+static void rl_stop(AudioBackend *ab);
+static void rl_seek(AudioBackend *ab, double seconds);
+static double rl_position(AudioBackend *ab);
+static bool rl_is_playing(AudioBackend *ab);
+static void rl_update(AudioBackend *ab);
+static void rl_resume(AudioBackend *ab);
+static bool rl_is_loaded(AudioBackend *ab);
+static bool rl_is_finished(AudioBackend *ab);
+static double rl_length(AudioBackend *ab);
 
 static AudioBackendVTable rl_vtable = {
     .load = rl_load,
@@ -32,6 +33,7 @@ static AudioBackendVTable rl_vtable = {
     .resume = rl_resume,
     .is_loaded = rl_is_loaded,
     .is_finished = rl_is_finished,
+    .get_length = rl_length,
 };
 
 struct AudioBackend* raylib_audio_backend_create(void)
@@ -110,6 +112,14 @@ static void rl_seek(struct AudioBackend *ab, double seconds)
     SeekMusicStream(ra->music, (float)seconds);
 }
 
+static double rl_length(struct AudioBackend *ab)
+{
+    RaylibAudio *ra = (RaylibAudio *)ab->impl;
+    if (!ra->loaded) return 0.0;
+
+    return GetMusicTimeLength(ra->music);
+}
+
 static double rl_position(struct AudioBackend *ab)
 {
     RaylibAudio *ra = (RaylibAudio *)ab->impl;
@@ -137,7 +147,7 @@ static bool rl_is_loaded(struct AudioBackend *ab)
 static bool rl_is_finished(struct AudioBackend *ab)
 {
     RaylibAudio *ra = (RaylibAudio *)ab->impl;
-    if (ab->vtable->is_playing) {
+    if (ab->vtable->is_loaded) {
         if (GetMusicTimePlayed(ra->music) + 0.1 > GetMusicTimeLength(ra->music)) {
             return true;
         }

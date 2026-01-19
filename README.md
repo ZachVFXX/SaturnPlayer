@@ -11,7 +11,7 @@ gcc -std=c99 -Wall -Wextra -Werror -fsanitize=address -g \
     -L../raylib/src -lraylib \
     -L../id3v2lib/src -lid3v2lib \
     $(pkg-config --libs gio-2.0) \
-      -lGL -lX11 -lm -lpthread -ldl -lrt && ./main 
+      -lGL -lX11 -lm -lpthread -ldl -lrt && ./main ~/.pymusicterm/musics/ 
 
 
 yt-dlp \

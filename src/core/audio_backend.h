@@ -1,7 +1,7 @@
 #pragma once
 #include <stdbool.h>
 
-struct AudioBackend;
+typedef struct AudioBackend AudioBackend;
 
 typedef struct {
     bool (*load)(AudioBackend *ab, const char *path);
@@ -15,6 +15,7 @@ typedef struct {
     bool (*is_loaded)(AudioBackend *ab);
     bool (*is_finished)(AudioBackend *ab);
     void (*update)(AudioBackend *ab);
+    double (*get_length)(AudioBackend *ab);
 } AudioBackendVTable;
 
 struct AudioBackend {

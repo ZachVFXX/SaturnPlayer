@@ -1,5 +1,6 @@
 #include <id3v2lib-2.0/id3v2lib.h>
 #include <iconv.h>
+#include <raylib.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -180,24 +181,16 @@ Metadata* get_metadata_from_mp3(mem_arena *arena, char* filepath)
     metadata->album_text = get_displayable_text(arena, ID3v2_Tag_get_album_frame(tag));
 
     ID3v2_ApicFrame* apic_frame = ID3v2_Tag_get_album_cover_frame(tag);
-    if (apic_frame && apic_frame->data && apic_frame->data->data)
-    {
+    if (apic_frame && apic_frame->data && apic_frame->data->data) {
         img->size = apic_frame->data->picture_size;
         img->data = arena_push(arena, img->size, false);
         img->mime_type = arena_push(arena, ID3v2_strlent(apic_frame->data->mime_type), false);
+        memcpy(img->data, apic_frame->data->data, img->size);
+        memcpy(img->mime_type, apic_frame->data->mime_type, ID3v2_strlent(apic_frame->data->mime_type));
+        TraceLog(LOG_INFO, "METADATA: Cover loaded in memory (%zu bytes, %s).",img->size, img->mime_type);
 
-        if (!img->data) {
-            fprintf(stderr, "Memory allocation failed for cover buffer\n");
-        } else {
-            memcpy(img->data, apic_frame->data->data, img->size);
-            memcpy(img->mime_type, apic_frame->data->mime_type, ID3v2_strlent(apic_frame->data->mime_type));
-            printf("Cover loaded in memory (%zu bytes, %s)\n",
-                   img->size,
-                   img->mime_type);
-        }
-    }
-    else {
-        printf("No cover found\n");
+    } else {
+        TraceLog(LOG_WARNING, "METADATA: No cover found for %s.", filepath);
     }
 
     metadata->image = img;
