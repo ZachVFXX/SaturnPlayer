@@ -34,9 +34,10 @@ static void core_play_current(Core *c)
 static void core_play_selected(Core *c)
 {
     Song *song = queue_current_selected(&c->queue);
-    if (!song)
+    if (!song) {
+        TraceLog(LOG_WARNING, "Can't play song selected because its NULL.");
         return;
-
+    }
     // Set the selected song as the currently playing song
     queue_play_song(&c->queue, song);
 

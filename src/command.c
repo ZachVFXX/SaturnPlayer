@@ -113,8 +113,6 @@ static void* youtube_search_thread(void* arg) {
     SearchResults* r = PUSH_STRUCT(s->arena, SearchResults);
     r->count = 0;
 
-    printf("%s LKJHSDLKJHSLKFJHLKJH\n", output);
-
     char* save_line;
     char* save_field;
 

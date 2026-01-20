@@ -1,7 +1,9 @@
 #include "core/core.h"
 #include "core/queue.h"
 #include "raylib.h"
+#include <raymath.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
@@ -101,6 +103,12 @@ bool debugEnabled = false;
 Tabs currentTab = TABS_QUEUE;
 static int next_song_id = 0;
 static Core *core = {0};
+
+static bool pointer_dragging = false;
+static Clay_Vector2 pointer_press_pos;
+#define DRAG_THRESHOLD 6.0f
+
+// UI
 #define MAX_SEARCH_LENGTH 256
 char searchQuery[MAX_SEARCH_LENGTH] = {0};
 bool searchBarActive = false;
@@ -123,7 +131,7 @@ int main(int argc, char** argv) {
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Music Player");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     //SetWindowState(FLAG_MSAA_4X_HINT);
-    SetTraceLogLevel(LOG_WARNING);
+    SetTraceLogLevel(LOG_INFO);
     InitAudioDevice();
 
     vectorInit(&covers_textures, sizeof(Texture2D), 64);
@@ -143,7 +151,9 @@ int main(int argc, char** argv) {
     Texture2D repeat_on_tex = createTextureFromMemory(REPEAT_ON_DATA, REPEAT_ON_FORMAT, REPEAT_ON_WIDTH, REPEAT_ON_HEIGHT);
     Texture2D repeat_on_one_tex = createTextureFromMemory(REPEAT_ON_ONE_DATA, REPEAT_ON_ONE_FORMAT, REPEAT_ON_ONE_WIDTH, REPEAT_ON_ONE_HEIGHT);
 
-    SetWindowIcon(LoadImageFromTexture(play_tex));
+    Image icon = LoadImageFromTexture(play_tex);
+    SetWindowIcon(icon);
+    UnloadImage(icon);
 
     Font poppins_regular = LoadFont_Poppins_Regular();
     Font poppins_semibold = LoadFont_Poppins_SemiBold();
@@ -200,14 +210,26 @@ int main(int argc, char** argv) {
                 key = GetCharPressed();
             }
 
+            // TODO: A REFAIRE C'EST MOCHE
             if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
                 size_t len = strlen(searchQuery);
-                if (len > 0) {
-                    searchQuery[len - 1] = '\0';
+                if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                    if (len > 0 && searchQuery[len - 1] == ' ') {
+                        searchQuery[len - 1] = '\0';
+                    } else {
+                        for (int i = len; i > 0; i--) {
+                            if (searchQuery[i - 1] == ' ') break;
+                            searchQuery[i - 1] = '\0';
+                        }
+                    }
+                } else {
+                    if (len > 0) {
+                        searchQuery[len - 1] = '\0';
+                    }
                 }
             }
 
-            if (IsKeyPressed(KEY_ESCAPE)) {
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_TAB)) {
                 searchBarActive = false;
             }
         } else {
@@ -227,6 +249,10 @@ int main(int argc, char** argv) {
             if (IsKeyPressed(KEY_F3)) {
                 debugEnabled = !debugEnabled;
             }
+        }
+
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_F)) {
+            searchBarActive = !searchBarActive;
         }
 
         if (IsKeyPressed(KEY_ENTER) && searchBarActive && strlen(searchQuery) > 0) {
@@ -276,8 +302,26 @@ int main(int argc, char** argv) {
 
         //GET DEFAULT DATA FOR MOUSE AND DIMENSION
         Vector2 mouseWheelDelta = GetMouseWheelMoveV();
-        float mouseWheelX = mouseWheelDelta.x;
-        float mouseWheelY = mouseWheelDelta.y;
+        if (!Vector2Equals(mouseWheelDelta, Vector2Zero())) {
+            searchBarActive = false;
+        }
+
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            pointer_press_pos = RAYLIB_VECTOR2_TO_CLAY_VECTOR2(GetMousePosition());
+            pointer_dragging = false;
+        }
+
+        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+            Clay_Vector2 cur = RAYLIB_VECTOR2_TO_CLAY_VECTOR2(GetMousePosition());
+            float dx = cur.x - pointer_press_pos.x;
+            float dy = cur.y - pointer_press_pos.y;
+            if ((dx*dx + dy*dy) > (DRAG_THRESHOLD * DRAG_THRESHOLD)) {
+                pointer_dragging = true;
+            }
+        }
+
+        float mouseWheelX = mouseWheelDelta.x * 3;
+        float mouseWheelY = mouseWheelDelta.y * 3;
         Clay_Vector2 mousePosition = RAYLIB_VECTOR2_TO_CLAY_VECTOR2(GetMousePosition());
         Clay_SetPointerState(mousePosition, IsMouseButtonDown(0));
         Clay_SetLayoutDimensions((Clay_Dimensions) { (float)GetScreenWidth(), (float)GetScreenHeight() });
@@ -348,7 +392,6 @@ int main(int argc, char** argv) {
                 CLAY(CLAY_ID("QUEUE_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND}) {
                     size_t count = core_get_queue_count(core);
                     size_t matchCount = 0;
-
                     for (size_t i = 0; i < count; i++) {
                         Song *song = core_get_song_at(core, i);
                         if (songMatchesSearch(song, searchQuery)) {
@@ -717,16 +760,17 @@ void HandleSearchInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
     (void)elementId;
     (void)userData;
 
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = !searchBarActive;
         TraceLog(LOG_INFO, "Search bar active: %d", searchBarActive);
     }
 }
 
 void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
+    (void) elementId;
     Song* song = (Song*)userData;
 
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = false;
         Song* curr_selected = core_get_current_song_selected(core);
         if (curr_selected->id == song->id) {
@@ -738,8 +782,8 @@ void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 }
 
 void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData){
-    (void)userData;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    (void)userData; (void) elementId;
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         core_send_command(core, (CoreCommand){ .type = CMD_TOGGLE_SHUFFLE, .shuffle_enabled = !queue_is_shuffle_enabled(&core->queue)});
     }
@@ -747,7 +791,7 @@ void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointer
 
 void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId; (void)userData;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         core_send_command(core, (CoreCommand) { .type = CMD_PLAY_PREV });
     }
@@ -755,7 +799,7 @@ void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointe
 
 void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId; (void)userData;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         core_send_command(core, (CoreCommand) { .type = CMD_PLAY_NEXT });
     }
@@ -763,7 +807,7 @@ void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 
 void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId; (void)userData;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         if (core_get_state(core) == CORE_PLAYING) {
             core_send_command(core, (CoreCommand) { .type = CMD_PAUSE });
@@ -776,7 +820,7 @@ void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void)elementId;
     (void)userData;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         LoopMode curr_mode = core_get_loop_mode(core);
         LoopMode new_mode = LOOP_NONE;
@@ -792,7 +836,7 @@ void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void)elementId;
     Tabs new_tab = (Tabs)(uintptr_t)userData;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME || Clay_PointerOver(elementId)) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         currentTab = new_tab;
         searchBarActive = false;
         TraceLog(LOG_INFO, "Current tab set to %d", currentTab);
@@ -853,7 +897,7 @@ void renderSearchResult(SearchResult* result, int index) {
 void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     SearchResult* result = (SearchResult*)userData;
     (void)elementId;
-    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME) {
+    if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = false;
         yt_download = youtube_download(search_arena, result->url, working_path);
     }
