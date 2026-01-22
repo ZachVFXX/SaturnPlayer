@@ -14,6 +14,14 @@ gcc -std=c99 -Wall -Wextra -Werror -fsanitize=address -g \
       -lGL -lX11 -lm -lpthread -ldl -lrt && ./main ~/.pymusicterm/musics/ 
 
 
+gcc -std=c99 -Wall -Wextra -Werror -g \
+    packer.c \
+    -o packer \
+    -I/usr/local/include \
+    -L../raylib/src -lraylib \
+      -lGL -lX11 -lm -lpthread -ldl -lrt && ./packer
+
+
 yt-dlp \
   -f bestaudio \
   -x \
