@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include "core/core.c"
@@ -114,7 +115,7 @@ char searchQuery[MAX_SEARCH_LENGTH] = {0};
 bool searchBarActive = false;
 char youtubeSearchQuery[MAX_SEARCH_LENGTH] = {0};
 
-const char* working_path;
+const char* working_path = ".";
 
 YoutubeSearch* yt_search = NULL;
 YoutubeDownload* yt_download = NULL;
@@ -122,7 +123,19 @@ YoutubeDownload* yt_download = NULL;
 SearchResults* currentSearchResults = NULL;
 mem_arena* search_arena = NULL;
 
+void print_help(char* program_name) {
+    printf("%s: [folder]\n", program_name);
+    printf("    PATH TO FOLDER TO SCAN\n");
+    exit(-1);
+}
+
 int main(int argc, char** argv) {
+    if (argc > 1) working_path = argv[1];
+    if (!DirectoryExists(working_path)) {
+        print_help(argv[0]);
+        exit(-1);
+    }
+
     // Clay initialisation
     int totalMemorySize = Clay_MinMemorySize();
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
@@ -130,8 +143,8 @@ int main(int argc, char** argv) {
 
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Music Player");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    //SetWindowState(FLAG_MSAA_4X_HINT);
-    SetTraceLogLevel(LOG_INFO);
+    SetTargetFPS(240);
+    SetWindowState(FLAG_MSAA_4X_HINT);
     InitAudioDevice();
 
     vectorInit(&covers_textures, sizeof(Texture2D), 64);
@@ -610,8 +623,6 @@ Song* createSong(mem_arena* arena, char* filepath)
     return NULL;
 }
 
-
-
 Texture2D texture2DFromImageBuffer(ImageBuffer* img)
 {
     if (!img || !img->data || img->size == 0)
@@ -629,6 +640,23 @@ Texture2D texture2DFromImageBuffer(ImageBuffer* img)
         TraceLog(LOG_ERROR, "Failed to load image from memory");
         return (Texture2D){0};
     }
+
+    Rectangle rect;
+
+    if (image.width > image.height) {
+        float offset = (image.width - image.height) * 0.5f;
+        rect = (Rectangle) { .x = offset, .y = 0, .width = image.height, .height = image.height };
+
+    } else if (image.height > image.width) {
+        float offset = (image.height - image.width) * 0.5f;
+        rect = (Rectangle) { .x = 0, .y = offset, .width = image.width, .height = image.width} ;
+    } else {
+        // already square
+        rect = (Rectangle) { 0, 0, image.width, image.height };
+    }
+
+    ImageCrop(&image, rect);
+
 
     Texture2D tex = LoadTextureFromImage(image);
     UnloadImage(image);
@@ -773,7 +801,10 @@ void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = false;
         Song* curr_selected = core_get_current_song_selected(core);
-        if (curr_selected->id == song->id) {
+        if (IsKeyDown(KEY_LEFT_SHIFT)) {
+            core_send_command(core, (CoreCommand){.type = CMD_QUEUE_ADD, .song = song});
+            return;
+        } else if (curr_selected->id == song->id) {
             core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
         } else {
             core_send_command(core, (CoreCommand){ .type = CMD_SELECT_SONG, .song = song});
