@@ -143,8 +143,8 @@ int main(int argc, char** argv) {
 
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Music Player");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    SetTargetFPS(240);
     SetWindowState(FLAG_MSAA_4X_HINT);
+    SetTargetFPS(240);
     InitAudioDevice();
 
     vectorInit(&covers_textures, sizeof(Texture2D), 64);

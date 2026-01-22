@@ -9,10 +9,6 @@
 
 #include "utils/arena.h"
 
-/* ======================= */
-/* Public types            */
-/* ======================= */
-
 #define MAX_SEARCH_RESULTS 16
 
 typedef struct {
@@ -28,9 +24,6 @@ typedef struct {
     int count;
 } SearchResults;
 
-/* ======================= */
-/* Search job              */
-/* ======================= */
 
 typedef struct {
     pthread_t thread;
@@ -43,10 +36,6 @@ typedef struct {
     bool success;
 } YoutubeSearch;
 
-/* ======================= */
-/* Download job            */
-/* ======================= */
-
 typedef struct {
     pthread_t thread;
     mem_arena* arena;
@@ -57,10 +46,6 @@ typedef struct {
     bool done;
     bool success;
 } YoutubeDownload;
-
-/* ======================= */
-/* Internal helpers        */
-/* ======================= */
 
 static void* youtube_search_thread(void* arg) {
     YoutubeSearch* s = arg;
@@ -145,7 +130,8 @@ static void* youtube_search_thread(void* arg) {
 
 static void* youtube_download_thread(void* arg) {
     YoutubeDownload* d = arg;
-
+    // TODO: ADD OTHER TYPE LIKE SOUNDCLOUD
+    // TODO: ADD WAY TO DOWNLOAD PLAYLIST TO
     const char* args[] = {
         "yt-dlp",
         "-x",
@@ -187,10 +173,6 @@ static void* youtube_download_thread(void* arg) {
     d->done = true;
     return NULL;
 }
-
-/* ======================= */
-/* Public API              */
-/* ======================= */
 
 YoutubeSearch* youtube_search(mem_arena* arena, const char* query, int max_results) {
     YoutubeSearch* s = PUSH_STRUCT(arena, YoutubeSearch);
