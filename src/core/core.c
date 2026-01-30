@@ -124,6 +124,16 @@ static void core_handle_command(Core *c, CoreCommand *cmd)
     case CMD_SET_LOOP_MODE:
         queue_set_loop_mode(&c->queue, cmd->loop_mode);
         break;
+    case CMD_QUEUE_REMOVE:
+        if (queue_current_playing(&c->queue) == cmd->song) {
+            if (c->queue.count > 0) {
+                core_send_command(c, (CoreCommand) { .type = CMD_PLAY_NEXT });
+            } else {
+                core_send_command(c, (CoreCommand) { .type = CMD_STOP });
+            }
+        }
+        queue_remove(&c->queue, cmd->song);
+        break;
     default:
         break;
     }

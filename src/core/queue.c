@@ -1,4 +1,5 @@
 #include "queue.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -77,7 +78,6 @@ void queue_push(SongQueue *q, Song *song)
 void queue_remove(SongQueue *q, Song *song)
 {
     if (q->count == 0) return;
-
     size_t index = 0;
     int found = 0;
     for (size_t i = 0; i < q->count; i++) {

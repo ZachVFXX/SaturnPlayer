@@ -3,9 +3,8 @@
 #include <pthread.h>
 #include "song.h"
 #include "queue.h"
-
+#include "audio_backend.h"
 typedef struct Core Core;
-typedef struct AudioBackend AudioBackend;
 
 typedef enum {
     CORE_STOPPED = 0,
@@ -32,6 +31,7 @@ typedef enum {
     CMD_SEEK_REL,
     CMD_TOGGLE_SHUFFLE,
     CMD_SET_LOOP_MODE,
+    CMD_QUEUE_REMOVE
 } CoreCommandType;
 
 typedef struct {
@@ -45,7 +45,6 @@ typedef struct {
     };
 } CoreCommand;
 
-/* ===================== Core lifecycle ===================== */
 Core *core_create(AudioBackend *audio);
 void  core_start(Core *core);
 void  core_stop(Core *core);
