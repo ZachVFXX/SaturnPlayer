@@ -61,8 +61,8 @@
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
 
 typedef struct {
-    bool active;        // currently dragging
-    float value;        // 0..1 normalized
+    bool active;        // is dragging
+    float value;        // normalized (0 to 1)
 } SliderState;
 
 typedef struct {

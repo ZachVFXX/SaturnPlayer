@@ -3,24 +3,7 @@ Music player in C
 TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with custom raylib flavor for smaller binaries.
 
 build test command : 
-gcc -std=c99 -Wall -Wextra -Werror -fsanitize=address -g \
-    main.c \
-    -o main \
-    -I/usr/local/include \
-    $(pkg-config --cflags gio-2.0) \
-    -L../raylib/src -lraylib \
-    -L../id3v2lib/src -lid3v2lib \
-    $(pkg-config --libs gio-2.0) \
-      -lGL -lX11 -lm -lpthread -ldl -lrt && ./main ~/.pymusicterm/musics/ 
-
-
-gcc -std=c99 -Wall -Wextra -Werror -g \
-    packer.c \
-    -o packer \
-    -I/usr/local/include \
-    -L../raylib/src -lraylib \
-      -lGL -lX11 -lm -lpthread -ldl -lrt && ./packer
-
+make
 
 yt-dlp \
   -f bestaudio \

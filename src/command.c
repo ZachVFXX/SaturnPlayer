@@ -57,9 +57,13 @@ static void* youtube_search_thread(void* arg) {
     const char* args[] = {
         "yt-dlp",
         "--print",
-        "%(id)s|%(title)s|%(uploader)s|%(duration_string)s|%(webpage_url)s",
+        "%(id)s|%(title)s|%(uploader)s|%(duration_string)s|https://www.youtube.com/watch?v=%(id)s",
         "--skip-download",
-        "--no-warnings",
+        "--quiet",
+        "--match-filter",
+        "ie_key=Youtube",
+        "--flat-playlist",
+        "--no-playlist",
         search_arg,
         NULL
     };
