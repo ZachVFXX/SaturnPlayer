@@ -43,19 +43,22 @@
 #include "assets/repeat_on_one.h"
 #include "assets/shuffle_on.h"
 
-#define COLOR_BACKGROUND (Clay_Color) {14, 12, 7, 255}
-#define COLOR_BACKGROUND_LIGHT (Clay_Color) {25, 22, 17, 255}
+#define COLOR_BACKGROUND        (Clay_Color){16, 14, 10, 255}
+#define COLOR_BACKGROUND_LIGHT  (Clay_Color){26, 23, 18, 255}
+#define COLOR_BACKGROUND_DARK   (Clay_Color){11, 10, 7, 255}
 
-#define COLOR_TEXT (Clay_Color) {239, 227, 221, 255}
+#define COLOR_TEXT_PRIMARY      (Clay_Color){238, 232, 226, 255}
+#define COLOR_TEXT_SECONDARY    (Clay_Color){176, 170, 164, 255}
+#define COLOR_TEXT_MUTED        (Clay_Color){130, 125, 120, 255}
 
-#define COLOR_PRIMARY (Clay_Color) {235, 161, 5, 255}
-#define COLOR_SECONDARY (Clay_Color) {255, 153, 0, 255}
-#define COLOR_ACCENT (Clay_Color) {220, 164, 81, 255}
+#define COLOR_PRIMARY           (Clay_Color){235, 161, 5, 255}
+#define COLOR_SECONDARY         (Clay_Color){201, 140, 12, 255}
+#define COLOR_ACCENT            (Clay_Color){170, 120, 45, 255}
 
-#define COLOR_HOVER COLOR_SECONDARY
+#define COLOR_HOVER COLOR_BACKGROUND_DARK
 
-#define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = COLOR_TEXT })
-#define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = COLOR_TEXT })
+#define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY })
+#define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY })
 
 #define RAYLIB_VECTOR2_TO_CLAY_VECTOR2(vector) (Clay_Vector2) { .x = vector.x, .y = vector.y }
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
@@ -229,7 +232,7 @@ int main(int argc, char** argv) {
                 key = GetCharPressed();
             }
 
-            // TODO: A REFAIRE C'EST MOCHE
+            // TODO: A REFAIRE C'EST MOCHE (PERMET DE CTR+BACKSPACE POUR SUPPRIMER UN MOT)
             if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
                 size_t len = strlen(searchQuery);
                 if (IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -361,18 +364,18 @@ int main(int argc, char** argv) {
 
         // START OF THE LAYOUT
         Clay_BeginLayout();
-        CLAY(CLAY_ID("WINDOW"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_BACKGROUND}) {
+        CLAY(CLAY_ID("WINDOW"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_BACKGROUND_DARK}) {
 
             CLAY(CLAY_ID("TABS_CONTAINER"), { .layout = { .layoutDirection = CLAY_LEFT_TO_RIGHT, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                    CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_QUEUE) ? (Clay_Hovered() ? COLOR_PRIMARY : COLOR_SECONDARY) : (Clay_Hovered() ? COLOR_HOVER : COLOR_BACKGROUND)}) {
+                    CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_QUEUE) ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_QUEUE);
-                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT }));
+                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
                 }
-                CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_SEARCH) ? (Clay_Hovered() ? COLOR_PRIMARY : COLOR_SECONDARY) : (Clay_Hovered() ? COLOR_HOVER : COLOR_BACKGROUND)}) {
+                CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_SEARCH) ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND : COLOR_BACKGROUND_LIGHT}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_SEARCH);
-                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT }));
+                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
                 }
-                CLAY(CLAY_ID("SEARCH_BAR"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}, .padding = CLAY_PADDING_ALL(8) }, .clip = { .horizontal = true, .vertical = true }, .backgroundColor = searchBarActive ? COLOR_SECONDARY : COLOR_BACKGROUND }) {
+                CLAY(CLAY_ID("SEARCH_BAR"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}, .padding = CLAY_PADDING_ALL(8) }, .clip = { .horizontal = true, .vertical = true }, .backgroundColor = searchBarActive ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND }) {
                     Clay_OnHover(HandleSearchInteraction, NULL);
                     if (strlen(searchQuery) > 0 || searchBarActive) {
                         char* displayText = arena_push(ui_arena, MAX_SEARCH_LENGTH + 10, false);
@@ -468,16 +471,16 @@ int main(int argc, char** argv) {
 
             if (core->audio->vtable->is_loaded(audio)) {
                 Song* song = core_get_current_song_playing(core);
-                CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.3)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     Clay_String string_title = { .chars = song->title, .length = strlen(song->title), .isStaticallyAllocated = false };
-                    CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT }));
+                    CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
 
                     Clay_String string_artists = { .chars = song->artists, .length = strlen(song->artists), .isStaticallyAllocated = false };
                     CLAY_TEXT(string_artists, TEXT_CONFIG_24);
                     CLAY(CLAY_ID("SLIDER_FRAME"), { .layout = { .padding = { .left = 8, .right = 8 } , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .childGap = 8, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
 
                         UiTimeString time_played = timeStringFromFloat(ui_arena, core->audio->vtable->position(core->audio));
-                        CLAY_TEXT(time_played.clay, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT }));
+                        CLAY_TEXT(time_played.clay, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
 
                         CLAY(CLAY_ID("SLIDER"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(20)}, .padding = CLAY_PADDING_ALL(2) }, .backgroundColor = COLOR_BACKGROUND}) {
                             Clay_OnHover(HandleSliderInteraction, NULL);
@@ -486,27 +489,27 @@ int main(int argc, char** argv) {
                         }
 
                         UiTimeString time_duration = timeStringFromFloat(ui_arena, song->length);
-                        CLAY_TEXT(time_duration.clay, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT }));
+                        CLAY_TEXT(time_duration.clay, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
                     }
 
-                    CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 0, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = queue_is_shuffle_enabled(&core->queue) ? (Clay_Hovered() ? COLOR_PRIMARY : COLOR_SECONDARY) : (Clay_Hovered() ? COLOR_PRIMARY : COLOR_BACKGROUND)}) {
+                    CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 8, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
                             Clay_OnHover(HandleShuffleInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &shuffle_tex}, .aspectRatio = { 1 }}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = core_is_shuffle_enabled(core) ? &shuffle_on_tex : &shuffle_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("PREVIOUS_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_SECONDARY : COLOR_BACKGROUND)}) {
+                        CLAY(CLAY_ID("PREVIOUS_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
                             Clay_OnHover(HandlePreviousInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &previous_tex}, .aspectRatio = { 1 }}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &previous_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_SECONDARY : COLOR_BACKGROUND)}) {
+                        CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
                             Clay_OnHover(HandlePlayInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = (core_get_state(core) == CORE_PLAYING) ? &pause_tex : &play_tex}, .aspectRatio = { 1 }}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = (core_get_state(core) == CORE_PLAYING) ? &pause_tex : &play_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("NEXT_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = (Clay_Hovered() ? COLOR_SECONDARY : COLOR_BACKGROUND)}) {
+                        CLAY(CLAY_ID("NEXT_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
                             Clay_OnHover(HandleNextInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &next_tex}, .aspectRatio = { 1 }}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = {.imageData = &next_tex}, .aspectRatio = {1}, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("LOOP_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}, .backgroundColor = core_get_loop_mode(core) ? (Clay_Hovered() ? COLOR_PRIMARY : COLOR_SECONDARY) : (Clay_Hovered() ? COLOR_PRIMARY : COLOR_BACKGROUND)}) {
+                        CLAY(CLAY_ID("LOOP_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
                             Clay_OnHover(HandleLoopInteraction, NULL);
                             void* img;
                             switch (core_get_loop_mode(core)) {
@@ -515,7 +518,7 @@ int main(int argc, char** argv) {
                                 case LOOP_ALL: img = &repeat_on_tex; break;
                                 default: img = &repeat_on_one_tex; break;
                             }
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = img }, .aspectRatio = { 1 }}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = img }, .aspectRatio = { 1 },  .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
                         }
                     }
                 }
@@ -673,14 +676,14 @@ void HandleClayErrors(Clay_ErrorData errorData)
 
 void renderSong(Song* song) {
     bool is_selected = (song == core_get_current_song_selected(core));
-    //bool is_playing = (song == core_get_current_song_playing(core));
-    CLAY_AUTO_ID({ .layout = { .childAlignment = {.y = CLAY_ALIGN_Y_CENTER}, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)}, .childGap = 8 }, .backgroundColor = (is_selected) ? (Clay_Hovered() ? COLOR_SECONDARY : COLOR_PRIMARY) : (Clay_Hovered() ? COLOR_HOVER : COLOR_BACKGROUND_LIGHT)}) {
-        Clay_Color color = (is_selected) ? (Clay_Hovered() ? COLOR_SECONDARY : COLOR_PRIMARY) : (Clay_Hovered() ? COLOR_HOVER : COLOR_BACKGROUND_LIGHT);
+    bool is_playing = (song == core_get_current_song_playing(core));
+    CLAY_AUTO_ID({ .layout = { .childAlignment = {.y = CLAY_ALIGN_Y_CENTER}, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)}, .childGap = 8 }, .backgroundColor = is_selected ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND_LIGHT : COLOR_BACKGROUND}) {
+        Clay_Color color = is_selected ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND_LIGHT : COLOR_BACKGROUND;
         Clay_OnHover(HandleSongInteraction, song);
         CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)} }, .image = { .imageData = vectorGet(&covers_textures, song->textureIndex)}, .aspectRatio = { 1 }}) {}
         CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 16 }, .backgroundColor = color}) {
             Clay_String string_title = { .chars = song->title, .length = strlen(song->title), .isStaticallyAllocated = false };
-            CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
+            CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = is_playing ? COLOR_SECONDARY : COLOR_TEXT_PRIMARY }));
             Clay_String string_artists = { .chars = song->artists, .length = strlen(song->artists), .isStaticallyAllocated = false };
             CLAY_TEXT(string_artists, TEXT_CONFIG_24);
         }

@@ -16,7 +16,7 @@ yt-dlp \
   --no-progress \
   --print after_move:filepath \
    "https://music.youtube.com/watch?v=QTHV3cuXnRY&si=lr7zSuqr-e8erE7b"
-(Query the playlist is the only reliable way to get all the tag)   
+TODO: (Query the playlist is the only reliable way to get all the tag)   
 
 Using: 
 https://github.com/larsbs/id3v2lib 

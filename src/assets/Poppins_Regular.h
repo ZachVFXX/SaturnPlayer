@@ -9,11 +9,10 @@
 //                                                                                    //
 // ---------------------------------------------------------------------------------- //
 //                                                                                    //
-// TODO: Fill the information and license of the exported font here:                  //
 //                                                                                    //
-// Font name:    ....                                                                 //
-// Font creator: ....                                                                 //
-// Font LICENSE: ....                                                                 //
+// Font name:    Poppins                                                              //
+// Font creator: Indian Type Foundry                                                  //
+// Font LICENSE: Open Font License                                                    //
 //                                                                                    //
 ////////////////////////////////////////////////////////////////////////////////////////
 
