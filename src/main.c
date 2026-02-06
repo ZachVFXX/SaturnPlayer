@@ -4,6 +4,7 @@
 #include <raymath.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -132,6 +133,8 @@ YoutubeDownload* yt_download = NULL;
 SearchResults* currentSearchResults = NULL;
 mem_arena* search_arena = NULL;
 
+int32_t current_cursor = MOUSE_CURSOR_DEFAULT;
+
 void print_help(char* program_name) {
     printf("%s: [folder]\n", program_name);
     printf("    PATH TO FOLDER TO SCAN\n");
@@ -220,7 +223,7 @@ int main(int argc, char** argv) {
 
     while (!WindowShouldClose())
     {
-
+        current_cursor = MOUSE_CURSOR_DEFAULT;
         if (searchBarActive) {
             int key = GetCharPressed();
             while (key > 0) {
@@ -422,15 +425,7 @@ int main(int argc, char** argv) {
                     }
                 }
             } else if (currentTab == TABS_SEARCH) {
-                CLAY(CLAY_ID("SEARCH_CONTAINER"), {
-                    .layout = {
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
-                        .childGap = 2
-                    },
-                    .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() },
-                    .backgroundColor = COLOR_BACKGROUND
-                }) {
+                CLAY(CLAY_ID("SEARCH_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND }) {
                     if (currentSearchResults && currentSearchResults->count > 0) {
                         for (int i = 0; i < currentSearchResults->count; i++) {
                             renderSearchResult(&currentSearchResults->results[i], i);
@@ -493,23 +488,23 @@ int main(int argc, char** argv) {
                     }
 
                     CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 8, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
+                        CLAY(CLAY_ID("SHUFFLE_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_FIXED(60)}}}) {
                             Clay_OnHover(HandleShuffleInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = core_is_shuffle_enabled(core) ? &shuffle_on_tex : &shuffle_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = core_is_shuffle_enabled(core) ? &shuffle_on_tex : &shuffle_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_MUTED : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("PREVIOUS_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
+                        CLAY(CLAY_ID("PREVIOUS_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_FIXED(60)}}}) {
                             Clay_OnHover(HandlePreviousInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &previous_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = &previous_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_MUTED : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
+                        CLAY(CLAY_ID("PLAY_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_FIXED(60)}}}) {
                             Clay_OnHover(HandlePlayInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = (core_get_state(core) == CORE_PLAYING) ? &pause_tex : &play_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = (core_get_state(core) == CORE_PLAYING) ? &pause_tex : &play_tex}, .aspectRatio = { 1 }, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_MUTED : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("NEXT_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
+                        CLAY(CLAY_ID("NEXT_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_FIXED(60)}}}) {
                             Clay_OnHover(HandleNextInteraction, NULL);
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = {.imageData = &next_tex}, .aspectRatio = {1}, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = {.imageData = &next_tex}, .aspectRatio = {1}, .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_MUTED : COLOR_TEXT_PRIMARY)}) {}
                         }
-                        CLAY(CLAY_ID("LOOP_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_GROW(0)}}}) {
+                        CLAY(CLAY_ID("LOOP_BUTTON"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_FIXED(60)}}}) {
                             Clay_OnHover(HandleLoopInteraction, NULL);
                             void* img;
                             switch (core_get_loop_mode(core)) {
@@ -518,7 +513,7 @@ int main(int argc, char** argv) {
                                 case LOOP_ALL: img = &repeat_on_tex; break;
                                 default: img = &repeat_on_one_tex; break;
                             }
-                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = img }, .aspectRatio = { 1 },  .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY)}) {}
+                            CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(24), .height = CLAY_SIZING_FIXED(24)} }, .image = { .imageData = img }, .aspectRatio = { 1 },  .backgroundColor = (Clay_Hovered() ? COLOR_TEXT_MUTED : COLOR_TEXT_PRIMARY)}) {}
                         }
                     }
                 }
@@ -551,6 +546,8 @@ int main(int argc, char** argv) {
         Clay_Raylib_Render(renderCommands, fonts);
         if (debugEnabled) DrawFPS(0, 0);
         EndDrawing();
+
+        SetMouseCursor(current_cursor);
 
         // RESET UI ARENA FOR THE NEXT PASS
         arena_clear(ui_arena);
@@ -729,6 +726,9 @@ UiTimeString timeStringFromFloat(mem_arena* arena, float seconds)
 void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void)elementId;
     (void)userData;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (!core->audio->vtable->is_loaded(core->audio))
         return;
 
@@ -784,6 +784,8 @@ void HandleSearchInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
     (void)elementId;
     (void)userData;
 
+    current_cursor = MOUSE_CURSOR_IBEAM;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = !searchBarActive;
         TraceLog(LOG_INFO, "Search bar active: %d", searchBarActive);
@@ -793,6 +795,8 @@ void HandleSearchInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
 void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void) elementId;
     Song* song = (Song*)userData;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
 
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = false;
@@ -812,7 +816,11 @@ void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 }
 
 void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData){
-    (void)userData; (void) elementId;
+    (void)userData;
+    (void) elementId;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         core_send_command(core, (CoreCommand){ .type = CMD_TOGGLE_SHUFFLE, .shuffle_enabled = !queue_is_shuffle_enabled(&core->queue)});
@@ -820,7 +828,11 @@ void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointer
 }
 
 void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
-    (void) elementId; (void)userData;
+    (void) elementId;
+    (void)userData;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         core_send_command(core, (CoreCommand) { .type = CMD_PLAY_PREV });
@@ -828,7 +840,11 @@ void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointe
 }
 
 void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
-    (void) elementId; (void)userData;
+    (void) elementId;
+    (void)userData;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         core_send_command(core, (CoreCommand) { .type = CMD_PLAY_NEXT });
@@ -836,7 +852,11 @@ void HandleNextInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 }
 
 void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
-    (void) elementId; (void)userData;
+    (void) elementId;
+    (void)userData;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         if (core_get_state(core) == CORE_PLAYING) {
@@ -850,6 +870,9 @@ void HandlePlayInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void)elementId;
     (void)userData;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
         LoopMode curr_mode = core_get_loop_mode(core);
@@ -865,6 +888,9 @@ void HandleLoopInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
 
 void HandleSelecTabInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     (void)elementId;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     Tabs new_tab = (Tabs)(uintptr_t)userData;
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         currentTab = new_tab;
@@ -928,6 +954,9 @@ void renderSearchResult(SearchResult* result, int index) {
 void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
     SearchResult* result = (SearchResult*)userData;
     (void)elementId;
+
+    current_cursor = MOUSE_CURSOR_POINTING_HAND;
+
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = false;
         yt_download = youtube_download(search_arena, result->url, working_path);
