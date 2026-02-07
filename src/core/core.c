@@ -1,3 +1,4 @@
+#include "../utils/arena.h"
 #include "core.h"
 #include "queue.c"
 #include "cmdq.c"
@@ -19,6 +20,7 @@ struct Core {
     SongQueue queue;
     CommandQueue cmdq;
     AudioBackend *audio;
+    mem_arena* string_arena;
 };
 
 static void core_play_current(Core *c)
@@ -26,7 +28,9 @@ static void core_play_current(Core *c)
     Song *song = queue_current_playing(&c->queue);
     if (!song)
         return;
-    c->audio->vtable->load(c->audio, song->path);
+
+    const char* song_path = arena_get_string(c->string_arena, song->path);
+    c->audio->vtable->load(c->audio, song_path);
     c->audio->vtable->play(c->audio);
     c->state = CORE_PLAYING;
 }
@@ -41,7 +45,8 @@ static void core_play_selected(Core *c)
     // Set the selected song as the currently playing song
     queue_play_song(&c->queue, song);
 
-    c->audio->vtable->load(c->audio, song->path);
+    const char* song_path = arena_get_string(c->string_arena, song->path);
+    c->audio->vtable->load(c->audio, song_path);
     c->audio->vtable->play(c->audio);
     c->state = CORE_PLAYING;
 }
@@ -165,7 +170,7 @@ static void *core_thread_fn(void *arg)
     return NULL;
 }
 
-Core *core_create(AudioBackend *audio)
+Core *core_create(AudioBackend *audio, mem_arena* string_arena)
 {
     Core *c = calloc(1, sizeof(Core));
     if (!c)
@@ -174,7 +179,7 @@ Core *core_create(AudioBackend *audio)
     c->audio = audio;
     c->state = CORE_STOPPED;
     c->running = false;
-
+    c->string_arena = string_arena;
     pthread_mutex_init(&c->mutex, NULL);
     queue_init(&c->queue);
     cmdq_init(&c->cmdq);

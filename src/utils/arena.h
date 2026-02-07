@@ -3,7 +3,10 @@
 #ifndef ARENA_H
 #define ARENA_H
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -28,6 +31,9 @@ typedef i32 b32;
 #define ARENA_BASE_POS (sizeof(mem_arena))
 #define ARENA_ALIGN (sizeof(void*))
 
+typedef u32 str_id;
+#define STR_INVALID ((u32)0)
+
 typedef struct {
     u64 reserve_size;
     u64 commit_size;
@@ -42,7 +48,14 @@ void* arena_push(mem_arena* arena, u64 size, b32 non_zero);
 void arena_pop(mem_arena* arena, u64 size);
 void arena_pop_to(mem_arena* arena, u64 pos);
 void arena_clear(mem_arena* arena);
+
+// STRING FUNCTION
 static char* arena_strdup(mem_arena* arena, const char* s);
+
+static str_id arena_push_string_id(mem_arena* arena, const char* s);
+
+static const char* arena_get_string(mem_arena* arena, str_id id);
+
 
 #define PUSH_STRUCT(arena, T) (T*)arena_push((arena), sizeof(T), false)
 #define PUSH_STRUCT_NZ(arena, T) (T*)arena_push((arena), sizeof(T), true)
@@ -135,6 +148,19 @@ static char* arena_strdup(mem_arena* arena, const char* s)
     char* out = arena_push(arena, len, false);
     memcpy(out, s, len);
     return out;
+}
+
+static str_id arena_push_string_id(mem_arena* arena, const char* s)
+{
+    char* str = arena_strdup(arena, s);
+    return (str_id)((u8*)str - (u8*)arena);
+}
+
+// CANNOT BE ID 0
+static const char* arena_get_string(mem_arena* arena, str_id id)
+{
+    if (id == STR_INVALID) return NULL;
+    return (const char*)((u8*)arena + id);
 }
 
 #if defined(_WIN32)

@@ -1,11 +1,15 @@
 #pragma once
 
+#include <stdint.h>
+
+typedef uint32_t str_id;
+
 typedef struct {
-    char *path;
-    char *title;
-    char *artists;
-    char *album;
-    int textureIndex;
+    str_id path;
+    str_id title;
+    str_id artists;
+    str_id album;
     float length;
-    int id;
+    uint16_t textureIndex;
+    uint16_t id;
 } Song;

@@ -5,6 +5,10 @@ TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with cus
 build test command : 
 make
 
+
+802 MO -> 408MO for 390 mp3
+
+
 yt-dlp \
   -f bestaudio \
   -x \

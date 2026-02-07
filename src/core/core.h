@@ -4,6 +4,8 @@
 #include "song.h"
 #include "queue.h"
 #include "audio_backend.h"
+#include "../utils/arena.h"
+
 typedef struct Core Core;
 
 typedef enum {
@@ -45,7 +47,7 @@ typedef struct {
     };
 } CoreCommand;
 
-Core *core_create(AudioBackend *audio);
+Core *core_create(AudioBackend *audio, mem_arena* string_arena);
 void  core_start(Core *core);
 void  core_stop(Core *core);
 void  core_destroy(Core *core);

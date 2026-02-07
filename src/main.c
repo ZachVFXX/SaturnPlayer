@@ -1,3 +1,8 @@
+
+#define ARENA_IMPLEMENTATION
+#include "utils/arena.h"
+
+
 #include "core/core.h"
 #include "core/queue.h"
 #include "raylib.h"
@@ -9,9 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#include "core/core.c"
-#include "core/audio_raylib.c"
 #include "ctype.h"
+
 
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
@@ -19,12 +23,12 @@
 
 #define VECTOR_IMPLEMENTATION
 #include "utils/vector.h"
-#define ARENA_IMPLEMENTATION
-#include "utils/arena.h"
 
 #include "command.c"
-
 #include "metadata.c"
+
+#include "core/core.c"
+#include "core/audio_raylib.c"
 
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
@@ -65,8 +69,10 @@
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
 
 typedef struct {
-    bool active;        // is dragging
-    float value;        // normalized (0 to 1)
+    bool active;           // is dragging
+    float value;           // normalized (0 to 1)
+    float target_value;    // where we seeked to
+    bool has_target;       // true if waiting for seek to complete
 } SliderState;
 
 typedef struct {
@@ -82,7 +88,7 @@ typedef enum {
 Texture2D texture2DFromImageBuffer(ImageBuffer* img);
 void renderSong(Song* song);
 void renderSearchResult(SearchResult* result, int index);
-Song* createSong(mem_arena* arena, char* filepath);
+Song* createSong(char* filepath);
 bool songMatchesSearch(Song* song, const char* query);
 UiTimeString timeStringFromFloat(mem_arena* arena, float seconds);
 Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height);
@@ -106,9 +112,13 @@ void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData po
 
 // Player
 Music music = {0};
+
 Vector covers_textures = {0};
 mem_arena* song_arena = {0};
 mem_arena* ui_arena = {0};
+mem_arena* string_arena = {0};
+mem_arena* scratch_arena = {0};
+
 SliderState music_slider = {0};
 bool debugEnabled = false;
 Tabs currentTab = TABS_QUEUE;
@@ -141,6 +151,19 @@ void print_help(char* program_name) {
     exit(-1);
 }
 
+void add_song_from_path(FilePathList files) {
+    for (size_t i = 0; i < files.count; i++)
+    {
+        char* filepath = files.paths[i];
+        Song* song = createSong(filepath);
+        if (song){
+            core_send_command(core, (CoreCommand){ .type = CMD_QUEUE_ADD, .song = song });
+        } else {
+            TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc > 1) working_path = argv[1];
     if (!DirectoryExists(working_path)) {
@@ -159,10 +182,15 @@ int main(int argc, char** argv) {
     SetTargetFPS(240);
     InitAudioDevice();
 
+    song_arena = arena_create(MiB(64), MiB(1));
+    ui_arena = arena_create(KiB(64), KiB(1));
+    search_arena = arena_create(MiB(4), KiB(1));
+    string_arena = arena_create(MiB(64), MiB(1));
+    scratch_arena = arena_create(MiB(8), MiB(1));
     vectorInit(&covers_textures, sizeof(Texture2D), 64);
 
     AudioBackend *audio = raylib_audio_backend_create();
-    core = core_create(audio);
+    core = core_create(audio, string_arena);
 
     core_start(core);
 
@@ -193,10 +221,6 @@ int main(int argc, char** argv) {
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
-    song_arena = arena_create(MiB(64), KiB(1));
-    ui_arena = arena_create(KiB(64), KiB(1));
-    search_arena = arena_create(MiB(4), KiB(1));
-
     for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
 
 
@@ -209,17 +233,8 @@ int main(int argc, char** argv) {
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
     FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
-
-    for (size_t i = 0; i < music_files.count; i++)
-    {
-        char* filepath = music_files.paths[i];
-        Song* song = createSong(song_arena, filepath);
-        if (song){
-            core_send_command(core, (CoreCommand){ .type = CMD_QUEUE_ADD, .song = song });
-        } else {
-            TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
-        }
-    }
+    add_song_from_path(music_files);
+    UnloadDirectoryFiles(music_files);
 
     while (!WindowShouldClose())
     {
@@ -295,14 +310,13 @@ int main(int argc, char** argv) {
 
         if (yt_download && youtube_download_done(yt_download)) {
             TraceLog(LOG_INFO, "Successfuly downloaded %s to %s.", yt_download->url, yt_download->final_path);
-            Song* song = createSong(song_arena, yt_download->final_path);
+            Song* song = createSong(yt_download->final_path);
             core_send_command(core, (CoreCommand) { .type = CMD_QUEUE_ADD, .song = song});
             core_send_command(core, (CoreCommand) { .type = CMD_PLAY_SONG, .song = song});
             yt_download = NULL;
         }
 
         if (reinitializeClay) {
-            Clay_SetMaxElementCount(8192);
             totalMemorySize = Clay_MinMemorySize();
             clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
             Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)GetScreenWidth(), (float)GetScreenHeight() }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
@@ -316,7 +330,7 @@ int main(int argc, char** argv) {
             for (size_t i = 0; i < droppedFiles.count; i++)
             {
                 char* filepath = droppedFiles.paths[i];
-                Song* song = createSong(song_arena, filepath);
+                Song* song = createSong(filepath);
                 if (song){
                     core_send_command(core, (CoreCommand) { .type = CMD_QUEUE_ADD, .song = song});
                 } else {
@@ -324,6 +338,8 @@ int main(int argc, char** argv) {
                 }
             }
             UnloadDroppedFiles(droppedFiles);
+            TraceLog(LOG_ERROR, "Current song loaded: %ul.", core_get_queue_count(core));
+
         }
 
         //GET DEFAULT DATA FOR MOUSE AND DIMENSION
@@ -359,7 +375,18 @@ int main(int argc, char** argv) {
             Song* song = core_get_current_song_playing(core);
             float length = song->length;
             if (length > 0.0f) {
-                music_slider.value = core->audio->vtable->position(audio) / length;
+                float actual_pos = core->audio->vtable->position(audio) / length;
+                if (music_slider.has_target) {
+                    if (fabsf(actual_pos - music_slider.target_value) < 0.01f) {
+                        music_slider.has_target = false;
+                        music_slider.value = actual_pos;
+                    } else {
+                        // Keep showing target position until seek completes
+                        music_slider.value = music_slider.target_value;
+                    }
+                } else {
+                    music_slider.value = actual_pos;
+                }
                 if (music_slider.value < 0.f) music_slider.value = 0.f;
                 if (music_slider.value > 1.f) music_slider.value = 1.f;
             }
@@ -466,11 +493,14 @@ int main(int argc, char** argv) {
 
             if (core->audio->vtable->is_loaded(audio)) {
                 Song* song = core_get_current_song_playing(core);
+                const char* song_title = arena_get_string(string_arena, song->title);
+                const char* song_artists = arena_get_string(string_arena, song->artists);
+
                 CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                    Clay_String string_title = { .chars = song->title, .length = strlen(song->title), .isStaticallyAllocated = false };
+                    Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
                     CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
 
-                    Clay_String string_artists = { .chars = song->artists, .length = strlen(song->artists), .isStaticallyAllocated = false };
+                    Clay_String string_artists = { .chars = song_artists, .length = strlen(song_artists), .isStaticallyAllocated = false };
                     CLAY_TEXT(string_artists, TEXT_CONFIG_24);
                     CLAY(CLAY_ID("SLIDER_FRAME"), { .layout = { .padding = { .left = 8, .right = 8 } , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .childGap = 8, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
 
@@ -480,7 +510,7 @@ int main(int argc, char** argv) {
                         CLAY(CLAY_ID("SLIDER"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(20)}, .padding = CLAY_PADDING_ALL(2) }, .backgroundColor = COLOR_BACKGROUND}) {
                             Clay_OnHover(HandleSliderInteraction, NULL);
                             float displayValue = (music_slider.value >= 0.f && music_slider.value <= 1.f) ? music_slider.value : 0.f;
-                            CLAY(CLAY_ID("SLIDER_WIDGET"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(displayValue), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_SECONDARY});
+                            CLAY(CLAY_ID("SLIDER_WIDGET"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(displayValue), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_SECONDARY}) {}
                         }
 
                         UiTimeString time_duration = timeStringFromFloat(ui_arena, song->length);
@@ -576,41 +606,44 @@ int main(int argc, char** argv) {
     vectorFree(&covers_textures);
     arena_destroy(song_arena);
     arena_destroy(ui_arena);
-    UnloadDirectoryFiles(music_files);
+    arena_destroy(scratch_arena);
+    arena_destroy(string_arena);
     CloseAudioDevice();
     Clay_Raylib_Close();
     return 0;
 }
 
-Song* createSong(mem_arena* arena, char* filepath)
+Song* createSong(char* filepath)
 {
     if (FileExists(filepath))
     {
         Music music = LoadMusicStream(filepath);
-        Metadata* metadata = get_metadata_from_mp3(arena, filepath);
-        Song* song = PUSH_STRUCT(arena, Song);
+        Metadata* metadata = get_metadata_from_mp3(scratch_arena, filepath);
+        Song* song = PUSH_STRUCT(song_arena, Song);
 
         song->id = next_song_id++;
 
         if (metadata->title_text)
-            song->title = arena_strdup(arena, metadata->title_text);
-        else song->title = arena_strdup(arena, GetFileNameWithoutExt(filepath));
+            song->title = arena_push_string_id(string_arena, metadata->title_text);
+        else song->title = arena_push_string_id(string_arena, GetFileNameWithoutExt(filepath));
 
         if (metadata->artist_text)
-            song->artists = arena_strdup(arena, metadata->artist_text);
-        else song->artists = arena_strdup(arena, "Unknown Artist");
+            song->artists = arena_push_string_id(string_arena, metadata->artist_text);
+        else song->artists = arena_push_string_id(string_arena, "Unknown Artist");
 
         if (metadata->album_text)
-            song->album = arena_strdup(arena, metadata->album_text);
-        else song->album = arena_strdup(arena, "Unknown Album");
+            song->album = arena_push_string_id(string_arena, metadata->album_text);
+        else song->album = arena_push_string_id(string_arena, "Unknown Album");
 
         Texture2D tex = texture2DFromImageBuffer(metadata->image);
         song->textureIndex = covers_textures.count;
         vectorAppend(&covers_textures, &tex);
 
-        song->path = arena_strdup(arena, filepath);
+        song->path = arena_push_string_id(string_arena, filepath);
         song->length = GetMusicTimeLength(music);
         UnloadMusicStream(music);
+
+        arena_clear(scratch_arena);
         return song;
     }
     return NULL;
@@ -660,7 +693,7 @@ Texture2D texture2DFromImageBuffer(ImageBuffer* img)
 
 void HandleClayErrors(Clay_ErrorData errorData)
 {
-    printf("%s", errorData.errorText.chars);
+    TraceLog(LOG_ERROR, "CLAY: %s with type: %d", errorData.errorText.chars, errorData.errorType);
     if (errorData.errorType == CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED) {
         reinitializeClay = true;
         Clay_SetMaxElementCount(Clay_GetMaxElementCount() * 2);
@@ -670,31 +703,79 @@ void HandleClayErrors(Clay_ErrorData errorData)
     }
 }
 
-
 void renderSong(Song* song) {
     bool is_selected = (song == core_get_current_song_selected(core));
     bool is_playing = (song == core_get_current_song_playing(core));
-    CLAY_AUTO_ID({ .layout = { .childAlignment = {.y = CLAY_ALIGN_Y_CENTER}, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)}, .childGap = 8 }, .backgroundColor = is_selected ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND_LIGHT : COLOR_BACKGROUND}) {
+    const char* song_title = arena_get_string(string_arena, song->title);
+    const char* song_album = arena_get_string(string_arena, song->album);
+    const char* song_artists = arena_get_string(string_arena, song->artists);
+
+    CLAY_AUTO_ID({
+        .layout = {
+            .childAlignment = {.y = CLAY_ALIGN_Y_CENTER},
+            .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80)},
+            .childGap = 8
+        },
+        .backgroundColor = is_selected ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND_LIGHT : COLOR_BACKGROUND
+    }) {
         Clay_Color color = is_selected ? COLOR_BACKGROUND_DARK : Clay_Hovered() ? COLOR_BACKGROUND_LIGHT : COLOR_BACKGROUND;
         Clay_OnHover(HandleSongInteraction, song);
-        CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)} }, .image = { .imageData = vectorGet(&covers_textures, song->textureIndex)}, .aspectRatio = { 1 }}) {}
-        CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 16 }, .backgroundColor = color}) {
-            Clay_String string_title = { .chars = song->title, .length = strlen(song->title), .isStaticallyAllocated = false };
+
+        // Album cover
+        CLAY_AUTO_ID({
+            .layout = {
+                .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)}
+            },
+            .image = { .imageData = vectorGet(&covers_textures, song->textureIndex)},
+            .aspectRatio = { 1 }
+        }) {
+            // Empty body is intentional - just displaying image
+        }
+
+        // Title and artist column
+        CLAY_AUTO_ID({
+            .layout = {
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)},
+                .padding = {8, 8, 8, 8},
+                .childGap = 16
+            },
+            .backgroundColor = color
+        }) {
+            Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
             CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = is_playing ? COLOR_SECONDARY : COLOR_TEXT_PRIMARY }));
-            Clay_String string_artists = { .chars = song->artists, .length = strlen(song->artists), .isStaticallyAllocated = false };
+            Clay_String string_artists = { .chars = song_artists, .length = strlen(song_artists), .isStaticallyAllocated = false };
             CLAY_TEXT(string_artists, TEXT_CONFIG_24);
         }
 
-        CLAY_AUTO_ID({ .layout = { .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER} , .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 16 }, .backgroundColor = color}) {
-            Clay_String string_album = { .chars = song->album, .length = strlen(song->album), .isStaticallyAllocated = false };
+        // Album name
+        CLAY_AUTO_ID({
+            .layout = {
+                .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER},
+                .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)},
+                .padding = {8, 8, 8, 8},
+                .childGap = 16
+            },
+            .backgroundColor = color
+        }) {
+            Clay_String string_album = { .chars = song_album, .length = strlen(song_album), .isStaticallyAllocated = false };
             CLAY_TEXT(string_album, TEXT_CONFIG_24);
         }
 
-        CLAY_AUTO_ID({ .layout = { .childAlignment = { .x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 16 }, .backgroundColor = color}) {
+        // Duration
+        CLAY_AUTO_ID({
+            .layout = {
+                .childAlignment = { .x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_CENTER },
+                .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)},
+                .padding = {8, 8, 8, 8},
+                .childGap = 16
+            },
+            .backgroundColor = color
+        }) {
             UiTimeString time = timeStringFromFloat(ui_arena, song->length);
-            CLAY_TEXT(time.clay , TEXT_CONFIG_24);
+            CLAY_TEXT(time.clay, TEXT_CONFIG_24);
         }
-    }
+    } // Close the main CLAY_AUTO_ID
 }
 
 UiTimeString timeStringFromFloat(mem_arena* arena, float seconds)
@@ -770,11 +851,12 @@ void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
     if (music_slider.active &&
         pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME) {
         core_send_command(core, (CoreCommand) { .type = CMD_SEEK_ABS, .seek_seconds = music_slider.value * length});
+        music_slider.target_value = music_slider.value;
+        music_slider.has_target = true;
         music_slider.active = false;
     }
 
     if (!music_slider.active) {
-        music_slider.value = core->audio->vtable->position(core->audio) / length;
         if (music_slider.value < 0.f) music_slider.value = 0.f;
         if (music_slider.value > 1.f) music_slider.value = 1.f;
     }
@@ -991,24 +1073,29 @@ bool songMatchesSearch(Song* song, const char* query) {
     }
     lowerQuery[queryLen] = '\0';
 
+
+    const char* song_title = arena_get_string(string_arena, song->title);
+    const char* song_artists = arena_get_string(string_arena, song->artists);
+    const char* song_album = arena_get_string(string_arena, song->album);
+
     // Convert title to lowercase
-    size_t titleLen = strlen(song->title);
+    size_t titleLen = strlen(song_title);
     for (size_t i = 0; i < titleLen && i < 255; i++) {
-        lowerTitle[i] = tolower((unsigned char)song->title[i]);
+        lowerTitle[i] = tolower((unsigned char)song_title[i]);
     }
     lowerTitle[titleLen] = '\0';
 
     // Convert artist to lowercase
-    size_t artistLen = strlen(song->artists);
+    size_t artistLen = strlen(song_artists);
     for (size_t i = 0; i < artistLen && i < 255; i++) {
-        lowerArtist[i] = tolower((unsigned char)song->artists[i]);
+        lowerArtist[i] = tolower((unsigned char)song_artists[i]);
     }
     lowerArtist[artistLen] = '\0';
 
     // Convert album to lowercase
-    size_t albumLen = strlen(song->album);
+    size_t albumLen = strlen(song_album);
     for (size_t i = 0; i < albumLen && i < 255; i++) {
-        lowerAlbum[i] = tolower((unsigned char)song->album[i]);
+        lowerAlbum[i] = tolower((unsigned char)song_album[i]);
     }
     lowerAlbum[albumLen] = '\0';
 
