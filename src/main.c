@@ -162,6 +162,7 @@ void add_song_from_path(FilePathList files) {
             TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
         }
     }
+    TraceLog(LOG_INFO, "Current queue size: %d", core_get_queue_count(core));
 }
 
 int main(int argc, char** argv) {
@@ -176,10 +177,8 @@ int main(int argc, char** argv) {
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
     Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)DEFAULT_WIDTH, (float)DEFAULT_HEIGHT }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
 
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Saturn Player");
-    SetWindowState(FLAG_WINDOW_RESIZABLE);
-    SetWindowState(FLAG_MSAA_4X_HINT);
-    SetTargetFPS(240);
     InitAudioDevice();
 
     song_arena = arena_create(MiB(64), MiB(1));
