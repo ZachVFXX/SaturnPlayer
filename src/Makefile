@@ -12,12 +12,19 @@ debug: main
 
 all: main packer
 
+release: main_release
+
 main: main.o
 	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(LINKRAYLIB) $(LINK3V2LIB) $(LINKDBUS)
 
+main_release: main_release.o
+	$(CC) $(CRELEASEFLAGS) -o $@ $^ $(LINKRAYLIB) $(LINK3V2LIB) $(LINKDBUS)
+
+main_release.o: main.c
+	$(CC) $(CFLAGS) $(CRELEASEFLAGS) -c $< -o $@
+
 packer: packer.o
 	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(LINKRAYLIB)
-
 
 main.o: main.c
 	$(CC) $(CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
@@ -26,5 +33,6 @@ packer.o: packer.c
 	$(CC) $(CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
 
 
+
 clean:
-	rm -f main packer *.o
+	rm -f main main_release packer *.o

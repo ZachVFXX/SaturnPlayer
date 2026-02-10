@@ -327,16 +327,7 @@ int main(int argc, char** argv) {
         if (IsFileDropped()) {
             TraceLog(LOG_INFO, "FILE DROPPED !");
             FilePathList droppedFiles = LoadDroppedFiles();
-            for (size_t i = 0; i < droppedFiles.count; i++)
-            {
-                char* filepath = droppedFiles.paths[i];
-                Song* song = createSong(filepath);
-                if (song){
-                    core_send_command(core, (CoreCommand) { .type = CMD_QUEUE_ADD, .song = song});
-                } else {
-                    TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
-                }
-            }
+            add_song_from_path(droppedFiles);
             UnloadDroppedFiles(droppedFiles);
             TraceLog(LOG_ERROR, "Current song loaded: %ul.", core_get_queue_count(core));
 
@@ -636,6 +627,7 @@ Song* createSong(char* filepath)
         else song->album = arena_push_string_id(string_arena, "Unknown Album");
 
         Texture2D tex = texture2DFromImageBuffer(metadata->image);
+
         song->textureIndex = covers_textures.count;
         vectorAppend(&covers_textures, &tex);
 
