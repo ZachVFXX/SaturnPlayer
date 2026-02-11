@@ -240,37 +240,63 @@ int main(int argc, char** argv) {
         current_cursor = MOUSE_CURSOR_DEFAULT;
         if (searchBarActive) {
             int key = GetCharPressed();
-            while (key > 0) {
-                if ((key >= 32) && (key <= 125) && (strlen(searchQuery) < MAX_SEARCH_LENGTH - 1)) {
-                    size_t len = strlen(searchQuery);
-                    searchQuery[len] = (char)key;
-                    searchQuery[len + 1] = '\0';
+
+            while (key > 0)
+            {
+                int byteSize = 0;
+                const char *utf8 = CodepointToUTF8(key, &byteSize);
+
+                int length = TextLength(searchQuery);
+
+                if (length + byteSize < MAX_SEARCH_LENGTH - 1)
+                {
+                    memcpy(searchQuery + length, utf8, byteSize);
+                    searchQuery[length + byteSize] = '\0';
                 }
+
                 key = GetCharPressed();
             }
 
-            // TODO: A REFAIRE C'EST MOCHE (PERMET DE CTR+BACKSPACE POUR SUPPRIMER UN MOT)
-            if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
-                size_t len = strlen(searchQuery);
-                if (IsKeyDown(KEY_LEFT_CONTROL)) {
-                    if (len > 0 && searchQuery[len - 1] == ' ') {
-                        searchQuery[len - 1] = '\0';
-                    } else {
-                        for (int i = len; i > 0; i--) {
-                            if (searchQuery[i - 1] == ' ') break;
-                            searchQuery[i - 1] = '\0';
+            if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE))
+            {
+                int length = TextLength(searchQuery);
+
+                if (length > 0) {
+                    int cpSize = 0;
+                    const char *ptr = searchQuery + length;
+
+                    if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                        while (length > 0) {
+                            int cp = GetCodepointPrevious(ptr, &cpSize);
+
+                            if (cp == ' ') {
+                                length -= cpSize;
+                                ptr -= cpSize;
+                            } else { break; }
                         }
-                    }
-                } else {
-                    if (len > 0) {
-                        searchQuery[len - 1] = '\0';
+
+                        while (length > 0) {
+                            int cp = GetCodepointPrevious(ptr, &cpSize);
+
+                            if (cp != ' ') {
+                                length -= cpSize;
+                                ptr -= cpSize;
+                            }  else { break; }
+                        }
+
+                        searchQuery[length] = '\0';
+                    } else {
+                        GetCodepointPrevious(ptr, &cpSize);
+                        searchQuery[length - cpSize] = '\0';
                     }
                 }
             }
+
 
             if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_TAB)) {
                 searchBarActive = false;
             }
+
         } else {
             if (IsKeyPressed(KEY_S) || IsKeyPressedRepeat(KEY_S)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_NEXT });
             if (IsKeyPressed(KEY_W) || IsKeyPressedRepeat(KEY_W)) core_send_command(core, (CoreCommand){ .type = CMD_SELECT_PREV });
@@ -486,7 +512,7 @@ int main(int argc, char** argv) {
                 const char* song_title = arena_get_string(string_arena, song->title);
                 const char* song_artists = arena_get_string(string_arena, song->artists);
 
-                CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(140)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
                     CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
 
