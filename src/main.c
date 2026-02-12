@@ -75,11 +75,6 @@ typedef struct {
     bool has_target;       // true if waiting for seek to complete
 } SliderState;
 
-typedef struct {
-    char* buf;
-    Clay_String clay;
-} UiTimeString;
-
 typedef enum {
     TABS_QUEUE,
     TABS_SEARCH
@@ -90,7 +85,7 @@ void renderSong(Song* song);
 void renderSearchResult(SearchResult* result, int index);
 Song* createSong(char* filepath);
 bool songMatchesSearch(Song* song, const char* query);
-UiTimeString timeStringFromFloat(mem_arena* arena, float seconds);
+Clay_String timeStringFromFloat(mem_arena* arena, float seconds);
 Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height);
 void togglePlayPause(void);
 
@@ -130,10 +125,9 @@ static Clay_Vector2 pointer_press_pos;
 #define DRAG_THRESHOLD 6.0f
 
 // UI
-#define MAX_SEARCH_LENGTH 256
+#define MAX_SEARCH_LENGTH 1024
 char searchQuery[MAX_SEARCH_LENGTH] = {0};
 bool searchBarActive = false;
-char youtubeSearchQuery[MAX_SEARCH_LENGTH] = {0};
 
 const char* working_path = ".";
 
@@ -520,8 +514,8 @@ int main(int argc, char** argv) {
                     CLAY_TEXT(string_artists, TEXT_CONFIG_24);
                     CLAY(CLAY_ID("SLIDER_FRAME"), { .layout = { .padding = { .left = 8, .right = 8 } , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .childGap = 8, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
 
-                        UiTimeString time_played = timeStringFromFloat(ui_arena, core->audio->vtable->position(core->audio));
-                        CLAY_TEXT(time_played.clay, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
+                        Clay_String time_played = timeStringFromFloat(ui_arena, core->audio->vtable->position(core->audio));
+                        CLAY_TEXT(time_played, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
 
                         CLAY(CLAY_ID("SLIDER"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(20)}, .padding = CLAY_PADDING_ALL(2) }, .backgroundColor = COLOR_BACKGROUND}) {
                             Clay_OnHover(HandleSliderInteraction, NULL);
@@ -529,8 +523,8 @@ int main(int argc, char** argv) {
                             CLAY(CLAY_ID("SLIDER_WIDGET"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(displayValue), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_SECONDARY}) {}
                         }
 
-                        UiTimeString time_duration = timeStringFromFloat(ui_arena, song->length);
-                        CLAY_TEXT(time_duration.clay, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
+                        Clay_String time_duration = timeStringFromFloat(ui_arena, song->length);
+                        CLAY_TEXT(time_duration, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
                     }
 
                     CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 8, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
@@ -789,13 +783,13 @@ void renderSong(Song* song) {
             },
             .backgroundColor = color
         }) {
-            UiTimeString time = timeStringFromFloat(ui_arena, song->length);
-            CLAY_TEXT(time.clay, TEXT_CONFIG_24);
+            Clay_String time = timeStringFromFloat(ui_arena, song->length);
+            CLAY_TEXT(time, TEXT_CONFIG_24);
         }
     } // Close the main CLAY_AUTO_ID
 }
 
-UiTimeString timeStringFromFloat(mem_arena* arena, float seconds)
+Clay_String timeStringFromFloat(mem_arena* arena, float seconds)
 {
     int h, m, s;
     int total = (int)round(seconds);
@@ -811,14 +805,7 @@ UiTimeString timeStringFromFloat(mem_arena* arena, float seconds)
     if (h == 0) snprintf(buf, 16, "%02d:%02d", m, s);
     else snprintf(buf, 16, "%02d:%02d:%02d", h, m, s);
 
-    return (UiTimeString){
-        .buf = buf,
-        .clay = {
-            .chars = buf,
-            .length = (h==0) ? 6 : 8,
-            .isStaticallyAllocated = false
-        }
-    };
+    return (Clay_String){ .chars = buf, .length = (h==0) ? 6 : 8, .isStaticallyAllocated = false, };
 }
 
 void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
