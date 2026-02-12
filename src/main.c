@@ -1,4 +1,3 @@
-
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
 
@@ -15,7 +14,7 @@
 #include <string.h>
 #include <pthread.h>
 #include "ctype.h"
-
+#include <assert.h>
 
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
@@ -80,6 +79,33 @@ typedef enum {
     TABS_SEARCH
 } Tabs;
 
+// Thread-related
+typedef struct {
+    FilePathList files;
+    Core* core;
+    mem_arena* song_arena;
+    mem_arena* string_arena;
+    mem_arena* scratch_arena;
+    Vector* covers_textures;
+    int* next_song_id;
+} LoadSongsThreadData;
+
+typedef struct PendingTexture {
+    Image image;
+    int textureIndex;
+} PendingTexture;
+
+typedef struct {
+    char** paths;
+    int count;
+} LoadSongsJob;
+
+extern Vector pending_textures;     // global
+extern Vector covers_textures;      // global
+extern pthread_mutex_t arena_mutex; // global
+
+Vector pending_textures = {0};
+
 Texture2D texture2DFromImageBuffer(ImageBuffer* img);
 void renderSong(Song* song);
 void renderSearchResult(SearchResult* result, int index);
@@ -108,7 +134,7 @@ void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData po
 // Player
 Music music = {0};
 
-Vector covers_textures = {0};
+Vector covers_textures = {0};  // Protected by arena_mutex, pre-allocated to avoid realloc
 mem_arena* song_arena = {0};
 mem_arena* ui_arena = {0};
 mem_arena* string_arena = {0};
@@ -139,6 +165,12 @@ mem_arena* search_arena = NULL;
 
 int32_t current_cursor = MOUSE_CURSOR_DEFAULT;
 
+pthread_t load_songs_thread = 0;
+bool loading_songs = false;
+pthread_mutex_t song_loading_mutex = PTHREAD_MUTEX_INITIALIZER;
+// Mutex to protect shared arenas and raylib audio subsystem from concurrent access
+pthread_mutex_t arena_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 void print_help(char* program_name) {
     printf("%s: [folder]\n", program_name);
     printf("    PATH TO FOLDER TO SCAN\n");
@@ -146,6 +178,7 @@ void print_help(char* program_name) {
 }
 
 void add_song_from_path(FilePathList files) {
+    double start_time = GetTime();
     for (size_t i = 0; i < files.count; i++)
     {
         char* filepath = files.paths[i];
@@ -157,7 +190,95 @@ void add_song_from_path(FilePathList files) {
         }
     }
     TraceLog(LOG_INFO, "Current queue size: %d", core_get_queue_count(core));
+    TraceLog(LOG_ERROR, "Loading took: %f", GetTime() - start_time);
 }
+
+
+void processPendingTextures(void)
+{
+    pthread_mutex_lock(&arena_mutex);
+
+    for (size_t i = 0; i < pending_textures.count; ++i)
+    {
+        PendingTexture* p = vectorGet(&pending_textures, i);
+
+        Texture2D tex = LoadTextureFromImage(p->image);
+        UnloadImage(p->image);
+
+        Texture2D* slot = vectorGet(&covers_textures, p->textureIndex);
+        if (slot)
+            *slot = tex;
+    }
+
+    pending_textures.count = 0;
+
+    pthread_mutex_unlock(&arena_mutex);
+}
+
+
+void* load_songs_thread_func(void* arg) {
+    LoadSongsThreadData* data = (LoadSongsThreadData*)arg;
+
+    double start_time = GetTime();
+    TraceLog(LOG_INFO, "Starting threaded song loading for %zu files", data->files.count);
+
+    for (size_t i = 0; i < data->files.count; i++)
+    {
+        char* filepath = data->files.paths[i];
+        Song* song = createSong(filepath);
+        if (song){
+            core_send_command(data->core, (CoreCommand){ .type = CMD_QUEUE_ADD, .song = song });
+        } else {
+            TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
+        }
+    }
+
+    TraceLog(LOG_INFO, "Thread finished loading. Queue size: %d", core_get_queue_count(data->core));
+    TraceLog(LOG_INFO, "Loading took: %f seconds", GetTime() - start_time);
+
+    pthread_mutex_lock(&song_loading_mutex);
+    loading_songs = false;
+    pthread_mutex_unlock(&song_loading_mutex);
+
+    // Clean up the file path list
+    UnloadDirectoryFiles(data->files);
+    free(data);
+
+    return NULL;
+}
+
+void start_loading_songs_async(FilePathList files) {
+    pthread_mutex_lock(&song_loading_mutex);
+    if (loading_songs) {
+        pthread_mutex_unlock(&song_loading_mutex);
+        TraceLog(LOG_WARNING, "Already loading songs, ignoring new request");
+        return;
+    }
+    loading_songs = true;
+    pthread_mutex_unlock(&song_loading_mutex);
+
+    LoadSongsThreadData* data = malloc(sizeof(LoadSongsThreadData));
+    data->files = files;
+    data->core = core;
+    data->song_arena = song_arena;
+    data->string_arena = string_arena;
+    data->scratch_arena = scratch_arena;
+    data->covers_textures = &covers_textures;
+    data->next_song_id = &next_song_id;
+
+    if (pthread_create(&load_songs_thread, NULL, load_songs_thread_func, data) != 0) {
+        TraceLog(LOG_ERROR, "Failed to create song loading thread");
+        pthread_mutex_lock(&song_loading_mutex);
+        loading_songs = false;
+        pthread_mutex_unlock(&song_loading_mutex);
+        UnloadDirectoryFiles(files);
+        free(data);
+    }
+
+    // Detach the thread so it cleans up automatically
+    pthread_detach(load_songs_thread);
+}
+
 
 int main(int argc, char** argv) {
     if (argc > 1) working_path = argv[1];
@@ -180,7 +301,9 @@ int main(int argc, char** argv) {
     search_arena = arena_create(MiB(4), KiB(1));
     string_arena = arena_create(MiB(64), MiB(1));
     scratch_arena = arena_create(MiB(8), MiB(1));
-    vectorInit(&covers_textures, sizeof(Texture2D), 64);
+    // Pre-allocate large capacity to avoid reallocs during threaded loading
+    vectorInit(&covers_textures, sizeof(Texture2D), 1024);
+    vectorInit(&pending_textures, sizeof(PendingTexture), 1024);
 
     AudioBackend *audio = raylib_audio_backend_create();
     core = core_create(audio, string_arena);
@@ -226,8 +349,7 @@ int main(int argc, char** argv) {
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
     FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
-    add_song_from_path(music_files);
-    UnloadDirectoryFiles(music_files);
+    start_loading_songs_async(music_files);
 
     while (!WindowShouldClose())
     {
@@ -346,11 +468,12 @@ int main(int argc, char** argv) {
         if (IsFileDropped()) {
             TraceLog(LOG_INFO, "FILE DROPPED !");
             FilePathList droppedFiles = LoadDroppedFiles();
-            add_song_from_path(droppedFiles);
-            UnloadDroppedFiles(droppedFiles);
+            start_loading_songs_async(droppedFiles);
             TraceLog(LOG_ERROR, "Current song loaded: %ul.", core_get_queue_count(core));
 
         }
+
+        processPendingTextures();
 
         //GET DEFAULT DATA FOR MOUSE AND DIMENSION
         Vector2 mouseWheelDelta = GetMouseWheelMoveV();
@@ -458,6 +581,23 @@ int main(int argc, char** argv) {
                             }
                         }) {
                             CLAY_TEXT(CLAY_STRING("No songs found"), TEXT_CONFIG_24_BOLD);
+                        }
+                    }
+
+                    // Show loading indicator when songs are being loaded
+                    pthread_mutex_lock(&song_loading_mutex);
+                    bool is_loading = loading_songs;
+                    pthread_mutex_unlock(&song_loading_mutex);
+
+                    if (is_loading && matchCount == 0) {
+                        CLAY(CLAY_ID("LOADING"), {
+                            .layout = {
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                                .padding = CLAY_PADDING_ALL(32)
+                            }
+                        }) {
+                            CLAY_TEXT(CLAY_STRING("Loading songs..."), TEXT_CONFIG_24_BOLD);
                         }
                     }
                 }
@@ -576,6 +716,24 @@ int main(int argc, char** argv) {
                 snprintf(buf3, 256, "Frame Time: %f\n", GetFrameTime());
                 Clay_String string3 = { .chars = buf3, .isStaticallyAllocated = false, .length = strlen(buf3)};
                 CLAY_TEXT(string3 , TEXT_CONFIG_24);
+
+                pthread_mutex_lock(&song_loading_mutex);
+                bool is_loading = loading_songs;
+                pthread_mutex_unlock(&song_loading_mutex);
+
+                char* buf4 = arena_push(ui_arena, 256, false);
+                snprintf(buf4, 256, "Loading: %s\n", is_loading ? "Yes" : "No");
+                Clay_String string4 = { .chars = buf4, .isStaticallyAllocated = false, .length = strlen(buf4)};
+                CLAY_TEXT(string4 , TEXT_CONFIG_24);
+
+                pthread_mutex_lock(&arena_mutex);
+                size_t pending_count = pending_textures.count;
+                pthread_mutex_unlock(&arena_mutex);
+
+                char* buf5 = arena_push(ui_arena, 256, false);
+                snprintf(buf5, 256, "Pending Textures: %zu\n", pending_count);
+                Clay_String string5 = { .chars = buf5, .isStaticallyAllocated = false, .length = strlen(buf5)};
+                CLAY_TEXT(string5 , TEXT_CONFIG_24);
             }
         }
 
@@ -592,6 +750,10 @@ int main(int argc, char** argv) {
         // RESET UI ARENA FOR THE NEXT PASS
         arena_clear(ui_arena);
     }
+
+    // Clean up mutexes
+    pthread_mutex_destroy(&song_loading_mutex);
+    pthread_mutex_destroy(&arena_mutex);
 
     for (size_t i = 0; i < covers_textures.count; i++) {
         Texture2D* t = vectorGet(&covers_textures, i);
@@ -614,6 +776,7 @@ int main(int argc, char** argv) {
 
     UnloadMusicStream(music);
     vectorFree(&covers_textures);
+    vectorFree(&pending_textures);
     arena_destroy(song_arena);
     arena_destroy(ui_arena);
     arena_destroy(scratch_arena);
@@ -625,39 +788,101 @@ int main(int argc, char** argv) {
 
 Song* createSong(char* filepath)
 {
-    if (FileExists(filepath))
+    if (!FileExists(filepath))
+        return NULL;
+
+    // Scratch arena locale (metadata seulement)
+    mem_arena* local_scratch = arena_create(MiB(8), MiB(1));
+    Metadata* metadata = get_metadata_from_mp3(local_scratch, filepath);
+
+    pthread_mutex_lock(&arena_mutex);
+
+    // Chargement durée (raylib audio = main-thread safe en général,
+    // mais si souci, déplacer aussi dans main)
+    Music music = LoadMusicStream(filepath);
+    float song_length = GetMusicTimeLength(music);
+    UnloadMusicStream(music);
+
+    Song* song = PUSH_STRUCT(song_arena, Song);
+    memset(song, 0, sizeof(Song));
+
+    song->id = next_song_id++;
+
+    song->title = arena_push_string_id(
+        string_arena,
+        metadata->title_text ? metadata->title_text : GetFileNameWithoutExt(filepath)
+    );
+
+    song->artists = arena_push_string_id(
+        string_arena,
+        metadata->artist_text ? metadata->artist_text : "Unknown Artist"
+    );
+
+    song->album = arena_push_string_id(
+        string_arena,
+        metadata->album_text ? metadata->album_text : "Unknown Album"
+    );
+
+    song->path   = arena_push_string_id(string_arena, filepath);
+    song->length = song_length;
+
+    // Reserve texture slot
+    song->textureIndex = covers_textures.count;
+    Texture2D placeholder = {0};
+    vectorAppend(&covers_textures, &placeholder);
+
+    pthread_mutex_unlock(&arena_mutex);
+
+    // ----- IMAGE DECODE (thread-safe) -----
+
+    if (metadata->image &&
+        metadata->image->data &&
+        metadata->image->size > 0)
     {
-        Music music = LoadMusicStream(filepath);
-        Metadata* metadata = get_metadata_from_mp3(scratch_arena, filepath);
-        Song* song = PUSH_STRUCT(song_arena, Song);
+        const char* ext =
+            get_file_extension_from_mime(metadata->image->mime_type);
 
-        song->id = next_song_id++;
+        Image img = LoadImageFromMemory(
+            ext,
+            metadata->image->data,
+            (int)metadata->image->size
+        );
 
-        if (metadata->title_text)
-            song->title = arena_push_string_id(string_arena, metadata->title_text);
-        else song->title = arena_push_string_id(string_arena, GetFileNameWithoutExt(filepath));
+        if (img.data)
+        {
+            // Crop carré
+            Rectangle rect;
 
-        if (metadata->artist_text)
-            song->artists = arena_push_string_id(string_arena, metadata->artist_text);
-        else song->artists = arena_push_string_id(string_arena, "Unknown Artist");
+            if (img.width > img.height)
+            {
+                float offset = (img.width - img.height) * 0.5f;
+                rect = (Rectangle){ offset, 0, img.height, img.height };
+            }
+            else if (img.height > img.width)
+            {
+                float offset = (img.height - img.width) * 0.5f;
+                rect = (Rectangle){ 0, offset, img.width, img.width };
+            }
+            else
+            {
+                rect = (Rectangle){ 0, 0, img.width, img.height };
+            }
 
-        if (metadata->album_text)
-            song->album = arena_push_string_id(string_arena, metadata->album_text);
-        else song->album = arena_push_string_id(string_arena, "Unknown Album");
+            ImageCrop(&img, rect);
 
-        Texture2D tex = texture2DFromImageBuffer(metadata->image);
+            // Push vers file GPU (main thread)
+            PendingTexture pending = {0};
+            pending.image = img;
+            pending.textureIndex = song->textureIndex;
 
-        song->textureIndex = covers_textures.count;
-        vectorAppend(&covers_textures, &tex);
-
-        song->path = arena_push_string_id(string_arena, filepath);
-        song->length = GetMusicTimeLength(music);
-        UnloadMusicStream(music);
-
-        arena_clear(scratch_arena);
-        return song;
+            pthread_mutex_lock(&arena_mutex);
+            vectorAppend(&pending_textures, &pending);
+            pthread_mutex_unlock(&arena_mutex);
+        }
     }
-    return NULL;
+
+    arena_destroy(local_scratch);
+    return song;
 }
 
 Texture2D texture2DFromImageBuffer(ImageBuffer* img)

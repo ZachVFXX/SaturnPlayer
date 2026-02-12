@@ -37,7 +37,6 @@ typedef u32 str_id;
 typedef struct {
     u64 reserve_size;
     u64 commit_size;
-
     u64 pos;
     u64 commit_pos;
 } mem_arena;
