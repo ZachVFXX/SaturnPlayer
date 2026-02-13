@@ -1,15 +1,15 @@
 Music player in C
 
-TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with custom raylib flavor for smaller binaries.
-
 build test command  
 make
 
+TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with custom raylib flavor for smaller binaries.
 TODO: Make arena linked list for no realloc
+TODO: custom install script that build raylib and ffmpeg
 
-400MO for 778 mp3s in debug
-118MO for 778 mp3s in release
-
+380MO for 778 mp3s in debug (73mo exec)
+92MO  for 778 mp3s in release (73mo exec)
+70MO  for 778 mp3s in release + strip (17mo exec)
 
 yt-dlp \
   -f bestaudio \

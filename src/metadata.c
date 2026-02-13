@@ -1,4 +1,4 @@
-#include <ffmpeg/libavformat/avformat.h>
+#include <libavformat/avformat.h>
 #include <raylib.h>
 #include <stdio.h>
 #include <stdbool.h>

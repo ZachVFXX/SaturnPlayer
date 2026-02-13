@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
-    FilePathList music_files = LoadDirectoryFilesEx(working_path, "", false);
+    FilePathList music_files = LoadDirectoryFiles(working_path);
     start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())

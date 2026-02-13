@@ -7,6 +7,7 @@
 *.obj
 *.elf
 
+src/.clangd
 *.wav
 *.mp3
 main
