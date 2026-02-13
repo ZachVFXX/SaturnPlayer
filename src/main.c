@@ -81,6 +81,7 @@ typedef enum {
 
 // Thread-related
 typedef struct {
+    bool is_file_dropped;
     FilePathList files;
     Core* core;
     mem_arena* song_arena;
@@ -241,13 +242,17 @@ void* load_songs_thread_func(void* arg) {
     pthread_mutex_unlock(&song_loading_mutex);
 
     // Clean up the file path list
-    UnloadDirectoryFiles(data->files);
+    if (data->is_file_dropped) {
+        UnloadDroppedFiles(data->files);
+    } else {
+        UnloadDirectoryFiles(data->files);
+    }
     free(data);
 
     return NULL;
 }
 
-void start_loading_songs_async(FilePathList files) {
+void start_loading_songs_async(FilePathList files, bool is_file_dropped) {
     pthread_mutex_lock(&song_loading_mutex);
     if (loading_songs) {
         pthread_mutex_unlock(&song_loading_mutex);
@@ -259,6 +264,7 @@ void start_loading_songs_async(FilePathList files) {
 
     LoadSongsThreadData* data = malloc(sizeof(LoadSongsThreadData));
     data->files = files;
+    data->is_file_dropped = is_file_dropped;
     data->core = core;
     data->song_arena = song_arena;
     data->string_arena = string_arena;
@@ -349,7 +355,7 @@ int main(int argc, char** argv) {
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
     FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
-    start_loading_songs_async(music_files);
+    start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())
     {
@@ -468,9 +474,8 @@ int main(int argc, char** argv) {
         if (IsFileDropped()) {
             TraceLog(LOG_INFO, "FILE DROPPED !");
             FilePathList droppedFiles = LoadDroppedFiles();
-            start_loading_songs_async(droppedFiles);
+            start_loading_songs_async(droppedFiles, true);
             TraceLog(LOG_ERROR, "Current song loaded: %ul.", core_get_queue_count(core));
-
         }
 
         processPendingTextures();
