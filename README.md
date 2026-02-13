@@ -2,11 +2,12 @@ Music player in C
 
 TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with custom raylib flavor for smaller binaries.
 
-build test command : 
+build test command  
 make
 
+TODO: Make arena linked list for no realloc
 
-802 MO -> 408MO for 390 mp3
+400MO for 778 mp3s in debug
 
 
 yt-dlp \
@@ -23,7 +24,7 @@ yt-dlp \
 TODO: (Query the playlist is the only reliable way to get all the tag)   
 
 Using: 
-https://github.com/larsbs/id3v2lib 
+https://github.com/larsbs/id3v2lib -> https://codeberg.org/tenacityteam/libid3tag.git
 https://github.com/raysan5/raylib
 https://github.com/nicbarker/clay
 https://fonts.google.com/icons

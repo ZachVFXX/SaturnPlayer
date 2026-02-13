@@ -3,8 +3,7 @@ CC = gcc
 CFLAGS = -std=c99 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L
 CDEBUGFLAGS = -fsanitize=address -ggdb
 CRELEASEFLAGS = -O3
-
-LINK3V2LIB = -L../id3v2lib/src -lid3v2lib
+LINKID3TAG = -lid3tag -lz
 LINKRAYLIB = -I/usr/local/include -L../raylib/src -lraylib -lGL -lX11 -lm -lpthread -ldl -lrt
 LINKDBUS = $(shell pkg-config --cflags --libs gio-2.0)
 
@@ -15,10 +14,10 @@ all: main packer
 release: main_release
 
 main: main.o
-	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(LINKRAYLIB) $(LINK3V2LIB) $(LINKDBUS)
+	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(LINKRAYLIB) $(LINKID3TAG) $(LINKDBUS)
 
 main_release: main_release.o
-	$(CC) $(CRELEASEFLAGS) -o $@ $^ $(LINKRAYLIB) $(LINK3V2LIB) $(LINKDBUS)
+	$(CC) $(CRELEASEFLAGS) -o $@ $^ $(LINKRAYLIB) $(LINKID3TAG) $(LINKDBUS)
 
 main_release.o: main.c
 	$(CC) $(CFLAGS) $(CRELEASEFLAGS) -c $< -o $@

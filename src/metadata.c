@@ -1,9 +1,9 @@
-#include <id3v2lib-2.0/id3v2lib.h>
-#include <iconv.h>
+#include <id3tag.h>
 #include <raylib.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
@@ -21,137 +21,90 @@ typedef struct {
     ImageBuffer* image;
 } Metadata;
 
-char* get_displayable_text(mem_arena* arena, ID3v2_TextFrame* f)
+char* get_text_from_field(mem_arena* arena, union id3_field const* field)
 {
-    if (!f || !f->data || !f->data->text)
+    if (!field)
         return NULL;
 
-    /* UTF-8 - no conversion needed */
-    if (f->data->encoding == 0x03)
-        return arena_strdup(arena, f->data->text);
-
-    const char* from_encoding = NULL;
-    char* inbuf = f->data->text;
-    size_t inbytesleft = f->header->size - 1; // Subtract encoding byte
-
-    /* ISO-8859-1 (Latin-1) */
-    if (f->data->encoding == 0x00)
-    {
-        from_encoding = "ISO-8859-1";
-    }
-    /* UTF-16 with BOM */
-    else if (f->data->encoding == 0x01)
-    {
-        // Detect and skip BOM
-        if (inbytesleft >= 2)
-        {
-            unsigned char b1 = (unsigned char)inbuf[0];
-            unsigned char b2 = (unsigned char)inbuf[1];
-
-            if (b1 == 0xFF && b2 == 0xFE)
-            {
-                from_encoding = "UTF-16LE";
-                inbuf += 2;
-                inbytesleft -= 2;
-            }
-            else if (b1 == 0xFE && b2 == 0xFF)
-            {
-                from_encoding = "UTF-16BE";
-                inbuf += 2;
-                inbytesleft -= 2;
-            }
-            else
-            {
-                // No BOM, assume UTF-16LE
-                from_encoding = "UTF-16LE";
-            }
-        }
-        else
-        {
-            return NULL;
-        }
-
-        // Find UTF-16 null terminator
-        size_t actual_len = 0;
-        for (size_t i = 0; i < inbytesleft - 1; i += 2)
-        {
-            if (inbuf[i] == 0 && inbuf[i + 1] == 0)
-            {
-                actual_len = i;
-                break;
-            }
-        }
-        if (actual_len > 0)
-            inbytesleft = actual_len;
-    }
-    /* UTF-16BE without BOM */
-    else if (f->data->encoding == 0x02)
-    {
-        from_encoding = "UTF-16BE";
-
-        // Find UTF-16 null terminator
-        size_t actual_len = 0;
-        for (size_t i = 0; i < inbytesleft - 1; i += 2)
-        {
-            if (inbuf[i] == 0 && inbuf[i + 1] == 0)
-            {
-                actual_len = i;
-                break;
-            }
-        }
-        if (actual_len > 0)
-            inbytesleft = actual_len;
-    }
-    else
-    {
+    id3_ucs4_t const* ucs4 = id3_field_getstrings(field, 0);
+    if (!ucs4)
         return NULL;
-    }
 
-    // For ISO-8859-1, find null terminator
-    if (f->data->encoding == 0x00)
-    {
-        size_t actual_len = 0;
-        for (size_t i = 0; i < inbytesleft; i++)
-        {
-            if (inbuf[i] == 0)
-            {
-                actual_len = i;
-                break;
-            }
+    // Convert UCS-4 to UTF-8
+    id3_utf8_t* utf8 = id3_ucs4_utf8duplicate(ucs4);
+    if (!utf8)
+        return NULL;
+
+    char* result = arena_strdup(arena, (char*)utf8);
+    free(utf8);
+
+    return result;
+}
+
+// Get text frame by frame ID
+char* get_text_frame(mem_arena* arena, struct id3_tag* tag, char const* frame_id)
+{
+    if (!tag || !frame_id)
+        return NULL;
+
+    struct id3_frame* frame = id3_tag_findframe(tag, frame_id, 0);
+    if (!frame)
+        return NULL;
+
+    // Text frames have the string list in field 1 (field 0 is text encoding)
+    union id3_field* field = id3_frame_field(frame, 1);
+    if (!field)
+        return NULL;
+
+    return get_text_from_field(arena, field);
+}
+
+// Extract APIC (album cover) frame
+ImageBuffer* get_album_cover(mem_arena* arena, struct id3_tag* tag)
+{
+    struct id3_frame* frame = id3_tag_findframe(tag, "APIC", 0);
+    if (!frame)
+        return NULL;
+
+    ImageBuffer* img = PUSH_STRUCT(arena, ImageBuffer);
+
+    // APIC frame structure:
+    // Field 0: Text encoding
+    // Field 1: MIME type
+    // Field 2: Picture type
+    // Field 3: Description
+    // Field 4: Picture data
+
+    // Get MIME type
+    union id3_field* mime_field = id3_frame_field(frame, 1);
+    if (mime_field) {
+        id3_latin1_t const* mime = id3_field_getlatin1(mime_field);
+        if (mime) {
+            size_t mime_len = strlen((char*)mime) + 1;
+            img->mime_type = arena_push(arena, mime_len, false);
+            memcpy(img->mime_type, mime, mime_len);
         }
-        if (actual_len > 0)
-            inbytesleft = actual_len;
     }
-
-    iconv_t cd = iconv_open("UTF-8", from_encoding);
-    if (cd == (iconv_t)-1)
-    {
-        printf("iconv_open failed");
+    // Get picture data
+    union id3_field* data_field = id3_frame_field(frame, 4);
+    if (!data_field)
         return NULL;
-    }
 
-    mem_arena* scratch = arena_create(MiB(1), KiB(1));
+    id3_byte_t const* data;
+    id3_length_t length;
 
-    size_t out_capacity = inbytesleft * 4 + 1;
-    char* scratch_out = arena_push(scratch, out_capacity, false);
-    char* outbuf = scratch_out;
-    size_t outbytesleft = out_capacity;
-
-    size_t result = iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
-    iconv_close(cd);
-
-    if (result == (size_t)-1)
-    {
-        perror("iconv conversion failed");
-        arena_destroy(scratch);
+    data = id3_field_getbinarydata(data_field, &length);
+    if (!data || length == 0)
         return NULL;
-    }
 
-    *outbuf = '\0';
-    char* final = arena_strdup(arena, scratch_out);
-    arena_destroy(scratch);
+    img->size = length;
+    img->data = arena_push(arena, img->size, false);
+    memcpy(img->data, data, img->size);
 
-    return final;
+    TraceLog(LOG_INFO, "METADATA: Cover loaded in memory (%zu bytes, %s).",
+             img->size, img->mime_type ? img->mime_type : "unknown");
+
+    return img;
 }
 
 const char* get_file_extension_from_mime(const char* mime_type)
@@ -163,37 +116,32 @@ const char* get_file_extension_from_mime(const char* mime_type)
     return ".jpg";
 }
 
-
-Metadata* get_metadata_from_mp3(mem_arena *arena, char* filepath)
+Metadata* get_metadata_from_mp3(mem_arena* arena, char* filepath)
 {
-    ImageBuffer* img = PUSH_STRUCT(arena, ImageBuffer);
     Metadata* metadata = PUSH_STRUCT(arena, Metadata);
 
-    ID3v2_Tag* tag = ID3v2_read_tag(filepath);
-
-    if (!tag) {
-        fprintf(stderr, "Failed to read tag from %s\n", filepath);
-        tag = ID3v2_Tag_new_empty();
+    struct id3_file* file = id3_file_open(filepath, ID3_FILE_MODE_READONLY);
+    if (!file) {
+        fprintf(stderr, "Failed to open file: %s\n", filepath);
+        return metadata;
     }
 
-    metadata->title_text = get_displayable_text(arena, ID3v2_Tag_get_title_frame(tag));
-    metadata->artist_text = get_displayable_text(arena, ID3v2_Tag_get_artist_frame(tag));
-    metadata->album_text = get_displayable_text(arena, ID3v2_Tag_get_album_frame(tag));
+    struct id3_tag* tag = id3_file_tag(file);
+    if (!tag) {
+        fprintf(stderr, "No ID3 tag found in %s\n", filepath);
+        id3_file_close(file);
+        return metadata;
+    }
 
-    ID3v2_ApicFrame* apic_frame = ID3v2_Tag_get_album_cover_frame(tag);
-    if (apic_frame && apic_frame->data && apic_frame->data->data) {
-        img->size = apic_frame->data->picture_size;
-        img->data = arena_push(arena, img->size, false);
-        img->mime_type = arena_push(arena, ID3v2_strlent(apic_frame->data->mime_type), false);
-        memcpy(img->data, apic_frame->data->data, img->size);
-        memcpy(img->mime_type, apic_frame->data->mime_type, ID3v2_strlent(apic_frame->data->mime_type));
-        TraceLog(LOG_INFO, "METADATA: Cover loaded in memory (%zu bytes, %s).",img->size, img->mime_type);
+    metadata->title_text = get_text_frame(arena, tag, ID3_FRAME_TITLE);
+    metadata->artist_text = get_text_frame(arena, tag, ID3_FRAME_ARTIST);
+    metadata->album_text = get_text_frame(arena, tag, ID3_FRAME_ALBUM);
 
-    } else {
+    metadata->image = get_album_cover(arena, tag);
+    if (!metadata->image) {
         TraceLog(LOG_WARNING, "METADATA: No cover found for %s.", filepath);
     }
 
-    metadata->image = img;
-    ID3v2_Tag_free(tag);
+    id3_file_close(file);
     return metadata;
 }
