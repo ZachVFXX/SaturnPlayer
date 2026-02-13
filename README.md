@@ -8,6 +8,7 @@ make
 TODO: Make arena linked list for no realloc
 
 400MO for 778 mp3s in debug
+118MO for 778 mp3s in release
 
 
 yt-dlp \
@@ -24,7 +25,7 @@ yt-dlp \
 TODO: (Query the playlist is the only reliable way to get all the tag)   
 
 Using: 
-https://github.com/larsbs/id3v2lib -> https://codeberg.org/tenacityteam/libid3tag.git
+https://github.com/larsbs/id3v2lib -> https://codeberg.org/tenacityteam/libid3tag.git -> ffmpeg avformat
 https://github.com/raysan5/raylib
 https://github.com/nicbarker/clay
 https://fonts.google.com/icons

@@ -79,7 +79,6 @@ typedef enum {
     TABS_SEARCH
 } Tabs;
 
-// Thread-related
 typedef struct {
     bool is_file_dropped;
     FilePathList files;
@@ -101,9 +100,9 @@ typedef struct {
     int count;
 } LoadSongsJob;
 
-extern Vector pending_textures;     // global
-extern Vector covers_textures;      // global
-extern pthread_mutex_t arena_mutex; // global
+extern Vector pending_textures;
+extern Vector covers_textures;
+extern pthread_mutex_t arena_mutex;
 
 Vector pending_textures = {0};
 
@@ -135,7 +134,7 @@ void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData po
 // Player
 Music music = {0};
 
-Vector covers_textures = {0};  // Protected by arena_mutex, pre-allocated to avoid realloc
+Vector covers_textures = {0};
 mem_arena* song_arena = {0};
 mem_arena* ui_arena = {0};
 mem_arena* string_arena = {0};
@@ -169,7 +168,7 @@ int32_t current_cursor = MOUSE_CURSOR_DEFAULT;
 pthread_t load_songs_thread = 0;
 bool loading_songs = false;
 pthread_mutex_t song_loading_mutex = PTHREAD_MUTEX_INITIALIZER;
-// Mutex to protect shared arenas and raylib audio subsystem from concurrent access
+
 pthread_mutex_t arena_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void print_help(char* program_name) {
@@ -241,7 +240,6 @@ void* load_songs_thread_func(void* arg) {
     loading_songs = false;
     pthread_mutex_unlock(&song_loading_mutex);
 
-    // Clean up the file path list
     if (data->is_file_dropped) {
         UnloadDroppedFiles(data->files);
     } else {
@@ -307,7 +305,7 @@ int main(int argc, char** argv) {
     search_arena = arena_create(MiB(4), KiB(1));
     string_arena = arena_create(MiB(64), MiB(1));
     scratch_arena = arena_create(MiB(8), MiB(1));
-    // Pre-allocate large capacity to avoid reallocs during threaded loading
+
     vectorInit(&covers_textures, sizeof(Texture2D), 1024);
     vectorInit(&pending_textures, sizeof(PendingTexture), 1024);
 
@@ -354,7 +352,7 @@ int main(int argc, char** argv) {
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
-    FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
+    FilePathList music_files = LoadDirectoryFilesEx(working_path, "", false);
     start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())
@@ -796,14 +794,10 @@ Song* createSong(char* filepath)
     if (!FileExists(filepath))
         return NULL;
 
-    // Scratch arena locale (metadata seulement)
     mem_arena* local_scratch = arena_create(MiB(8), MiB(1));
     Metadata* metadata = get_metadata_from_mp3(local_scratch, filepath);
 
     pthread_mutex_lock(&arena_mutex);
-
-    // Chargement durée (raylib audio = main-thread safe en général,
-    // mais si souci, déplacer aussi dans main)
     Music music = LoadMusicStream(filepath);
     float song_length = GetMusicTimeLength(music);
     UnloadMusicStream(music);
@@ -831,51 +825,32 @@ Song* createSong(char* filepath)
     song->path   = arena_push_string_id(string_arena, filepath);
     song->length = song_length;
 
-    // Reserve texture slot
     song->textureIndex = covers_textures.count;
     Texture2D placeholder = {0};
     vectorAppend(&covers_textures, &placeholder);
 
     pthread_mutex_unlock(&arena_mutex);
 
-    // ----- IMAGE DECODE (thread-safe) -----
+    if (metadata->image && metadata->image->data && metadata->image->size > 0) {
+        const char* ext = get_file_extension_from_mime(metadata->image->mime_type);
 
-    if (metadata->image &&
-        metadata->image->data &&
-        metadata->image->size > 0)
-    {
-        const char* ext =
-            get_file_extension_from_mime(metadata->image->mime_type);
+        Image img = LoadImageFromMemory(ext, metadata->image->data, (int)metadata->image->size);
 
-        Image img = LoadImageFromMemory(
-            ext,
-            metadata->image->data,
-            (int)metadata->image->size
-        );
-
-        if (img.data)
-        {
-            // Crop carré
+        if (img.data) {
             Rectangle rect;
-
-            if (img.width > img.height)
-            {
+            if (img.width > img.height) {
                 float offset = (img.width - img.height) * 0.5f;
                 rect = (Rectangle){ offset, 0, img.height, img.height };
             }
-            else if (img.height > img.width)
-            {
+            else if (img.height > img.width) {
                 float offset = (img.height - img.width) * 0.5f;
                 rect = (Rectangle){ 0, offset, img.width, img.width };
-            }
-            else
-            {
+            } else {
                 rect = (Rectangle){ 0, 0, img.width, img.height };
             }
 
             ImageCrop(&img, rect);
 
-            // Push vers file GPU (main thread)
             PendingTexture pending = {0};
             pending.image = img;
             pending.textureIndex = song->textureIndex;
@@ -963,17 +938,9 @@ void renderSong(Song* song) {
         Clay_OnHover(HandleSongInteraction, song);
 
         // Album cover
-        CLAY_AUTO_ID({
-            .layout = {
-                .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)}
-            },
-            .image = { .imageData = vectorGet(&covers_textures, song->textureIndex)},
-            .aspectRatio = { 1 }
-        }) {
-            // Empty body is intentional - just displaying image
-        }
+        CLAY_AUTO_ID({ .layout = { .sizing = { .width = CLAY_SIZING_FIXED(80), .height = CLAY_SIZING_FIXED(80)} }, .image = { .imageData = vectorGet(&covers_textures, song->textureIndex)}, .aspectRatio = { 1 }});
 
-        // Title and artist column
+        // Title and artist
         CLAY_AUTO_ID({
             .layout = {
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -989,7 +956,7 @@ void renderSong(Song* song) {
             CLAY_TEXT(string_artists, TEXT_CONFIG_24);
         }
 
-        // Album name
+        // Album
         CLAY_AUTO_ID({
             .layout = {
                 .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER},
@@ -1016,7 +983,7 @@ void renderSong(Song* song) {
             Clay_String time = timeStringFromFloat(ui_arena, song->length);
             CLAY_TEXT(time, TEXT_CONFIG_24);
         }
-    } // Close the main CLAY_AUTO_ID
+    }
 }
 
 Clay_String timeStringFromFloat(mem_arena* arena, float seconds)
@@ -1300,7 +1267,6 @@ bool songMatchesSearch(Song* song, const char* query) {
     char lowerArtist[256];
     char lowerAlbum[256];
 
-    // Convert query to lowercase
     size_t queryLen = strlen(query);
     for (size_t i = 0; i < queryLen && i < MAX_SEARCH_LENGTH - 1; i++) {
         lowerQuery[i] = tolower((unsigned char)query[i]);
@@ -1312,21 +1278,18 @@ bool songMatchesSearch(Song* song, const char* query) {
     const char* song_artists = arena_get_string(string_arena, song->artists);
     const char* song_album = arena_get_string(string_arena, song->album);
 
-    // Convert title to lowercase
     size_t titleLen = strlen(song_title);
     for (size_t i = 0; i < titleLen && i < 255; i++) {
         lowerTitle[i] = tolower((unsigned char)song_title[i]);
     }
     lowerTitle[titleLen] = '\0';
 
-    // Convert artist to lowercase
     size_t artistLen = strlen(song_artists);
     for (size_t i = 0; i < artistLen && i < 255; i++) {
         lowerArtist[i] = tolower((unsigned char)song_artists[i]);
     }
     lowerArtist[artistLen] = '\0';
 
-    // Convert album to lowercase
     size_t albumLen = strlen(song_album);
     for (size_t i = 0; i < albumLen && i < 255; i++) {
         lowerAlbum[i] = tolower((unsigned char)song_album[i]);

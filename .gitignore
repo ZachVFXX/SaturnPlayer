@@ -9,6 +9,8 @@
 
 *.wav
 *.mp3
+main
+main_release
 
 # Linker output
 *.ilk
@@ -24,7 +26,6 @@
 *.a
 *.la
 *.lo
-main
 # Shared objects (inc. Windows DLLs)
 *.dll
 *.so
