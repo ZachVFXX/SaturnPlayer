@@ -1,31 +1,63 @@
-Music player in C
+# Music Player in C 
 
-build test command  
-make
+WORK IN PROGRESS, FEEL FREE TO CONTRIBUTE
 
-TODO: Custom https://github.com/raysan5/raylib/blob/master/src/config.h with custom raylib flavor for smaller binaries.
-TODO: Make arena linked list for no realloc
-TODO: custom install script that build raylib and ffmpeg
+Minimal desktop music player written in C.
 
-380MO for 778 mp3s in debug (73mo exec)
-92MO  for 778 mp3s in release (73mo exec)
-70MO  for 778 mp3s in release + strip (17mo exec)
+Supports downloading songs directly from **YouTube Music**, MP3/WAV/OGG/FLAC playback, metadata extraction, and embedded cover rendering.
 
-yt-dlp \
-  -f bestaudio \
-  -x \
-  --audio-format mp3 \
-  --audio-quality 0 \
-  --embed-metadata \
-  --embed-thumbnail \
-  --add-metadata \
-  --no-progress \
-  --print after_move:filepath \
-   "https://music.youtube.com/watch?v=QTHV3cuXnRY&si=lr7zSuqr-e8erE7b"
-TODO: (Query the playlist is the only reliable way to get all the tag)   
+---
 
-Using: 
-https://github.com/larsbs/id3v2lib -> https://codeberg.org/tenacityteam/libid3tag.git -> ffmpeg avformat
-https://github.com/raysan5/raylib
-https://github.com/nicbarker/clay
-https://fonts.google.com/icons
+## Features
+
+* MP3/WAV/OGG/FLAC playback
+* Download songs from YouTube Music
+* Metadata extraction (artist, album, cover)
+* Embedded album art rendering
+* Threaded song loading
+
+---
+
+## Dependencies
+
+* [FFmpeg](https://github.com/FFmpeg/FFmpeg) (`libavformat`)
+* [raylib](https://github.com/raysan5/raylib)
+* [Clay](https://github.com/nicbarker/clay)
+
+---
+
+## Build
+
+Requirements:
+
+* C compiler (gcc / clang)
+* `make`
+* FFmpeg development libraries
+* raylib
+
+```bash
+make release && ./main_release ~/musics_folders/
+```
+
+---
+
+## Size (778 MP3s)
+
+* Debug:          380MB RAM - 73MB binary
+* Release:         92MB RAM - 73MB binary
+* Release + strip: 70MB RAM - 17MB binary
+
+---
+
+## TODO
+
+* Custom raylib `config.h` for smaller binaries
+* Arena linked list (remove `realloc`)
+* Custom install script (build raylib + FFmpeg)
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+See the [LICENSE](./LICENSE) file for details.
