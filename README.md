@@ -23,7 +23,8 @@ Supports downloading songs directly from **YouTube Music**, MP3/WAV/OGG/FLAC pla
 * [FFmpeg](https://github.com/FFmpeg/FFmpeg) (`libavformat`)
 * [raylib](https://github.com/raysan5/raylib)
 * [Clay](https://github.com/nicbarker/clay)
-
+* [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+  
 ---
 
 ## Build
@@ -34,6 +35,7 @@ Requirements:
 * `make`
 * FFmpeg development libraries
 * raylib
+* yt-dlp downloaded and set in path
 
 ```bash
 make release && ./main_release ~/musics_folders/
