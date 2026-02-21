@@ -153,8 +153,8 @@ bool searchBarActive = false;
 
 const char* working_path = ".";
 
-YoutubeSearch* yt_search = NULL;
-YoutubeDownload* yt_download = NULL;
+Search* searcher = NULL;
+Download* downloader = NULL;
 
 SearchResults* currentSearchResults = NULL;
 mem_arena* search_arena = NULL;
@@ -468,24 +468,24 @@ int main(int argc, char** argv) {
         }
 
         if (IsKeyPressed(KEY_ENTER) && searchBarActive && strlen(searchQuery) > 0) {
-            if (!yt_search) {
+            if (!searcher) {
                 arena_clear(search_arena);
-                yt_search = youtube_search(search_arena, searchQuery, 10);
+                searcher = search_start(search_arena, searchQuery, 10);
                 currentTab = TABS_SEARCH;
             }
         }
 
-        if (yt_search && youtube_search_done(yt_search)) {
-            currentSearchResults = youtube_search_results(yt_search);
-            yt_search = NULL;
+        if (searcher && search_done(searcher)) {
+            currentSearchResults = search_results(searcher);
+            searcher = NULL;
         }
 
-        if (yt_download && youtube_download_done(yt_download)) {
-            TraceLog(LOG_INFO, "Successfuly downloaded %s to %s.", yt_download->url, yt_download->final_path);
-            Song* song = createSong(yt_download->final_path);
+        if (downloader && download_done(downloader)) {
+            TraceLog(LOG_INFO, "Successfuly downloaded %s to %s.", downloader->url, downloader->final_path);
+            Song* song = createSong(downloader->final_path);
             core_send_command(core, (CoreCommand) { .type = CMD_QUEUE_ADD, .song = song});
             core_send_command(core, (CoreCommand) { .type = CMD_PLAY_SONG, .song = song});
-            yt_download = NULL;
+            downloader = NULL;
         }
 
         if (reinitializeClay) {
@@ -649,7 +649,7 @@ int main(int argc, char** argv) {
                         for (int i = 0; i < currentSearchResults->count; i++) {
                             renderSearchResult(&currentSearchResults->results[i], i);
                         }
-                    } else if (yt_search == NULL) {
+                    } else if (searcher == NULL) {
                         CLAY(CLAY_ID("NO_RESULTS"), {
                             .layout = {
                                 .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
@@ -659,7 +659,7 @@ int main(int argc, char** argv) {
                         }) {
                         CLAY_TEXT(CLAY_STRING("Search and Press Enter"), TEXT_CONFIG_24_BOLD);
                         }
-                    } else if (!youtube_search_done(yt_search)) {
+                    } else if (!search_done(searcher)) {
                         CLAY(CLAY_ID("NO_RESULTS"), {
                             .layout = {
                                 .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
@@ -1284,7 +1284,7 @@ void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData po
 
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging) {
         searchBarActive = false;
-        yt_download = youtube_download(search_arena, result->url, working_path);
+        downloader = download_start(search_arena, result->url, working_path);
     }
 }
 

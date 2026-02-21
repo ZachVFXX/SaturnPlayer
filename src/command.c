@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 #define SUBPROCESS_IMPLEMENTATION
 #include "../external/subprocess.h"
 
@@ -34,7 +35,7 @@ typedef struct {
     SearchResults* results;
     bool done;
     bool success;
-} YoutubeSearch;
+} Search;
 
 typedef struct {
     pthread_t thread;
@@ -45,10 +46,10 @@ typedef struct {
     char* final_path;
     bool done;
     bool success;
-} YoutubeDownload;
+} Download;
 
-static void* youtube_search_thread(void* arg) {
-    YoutubeSearch* s = arg;
+static void* search_thread(void* arg) {
+    Search* s = arg;
 
     char search_arg[512];
     snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s",
@@ -57,11 +58,9 @@ static void* youtube_search_thread(void* arg) {
     const char* args[] = {
         "yt-dlp",
         "--print",
-        "%(id)s|%(title)s|%(uploader)s|%(duration_string)s|https://www.youtube.com/watch?v=%(id)s",
+        "%(id)s|%(title)s|%(uploader)s|%(duration_string)s|%(webpage_url)s",
         "--skip-download",
         "--quiet",
-        "--match-filter",
-        "ie_key=Youtube",
         "--flat-playlist",
         "--no-playlist",
         search_arg,
@@ -132,8 +131,8 @@ static void* youtube_search_thread(void* arg) {
     return NULL;
 }
 
-static void* youtube_download_thread(void* arg) {
-    YoutubeDownload* d = arg;
+static void* download_thread(void* arg) {
+    Download* d = arg;
     // TODO: ADD OTHER TYPE LIKE SOUNDCLOUD
     // TODO: ADD WAY TO DOWNLOAD PLAYLIST TO
     const char* args[] = {
@@ -178,41 +177,41 @@ static void* youtube_download_thread(void* arg) {
     return NULL;
 }
 
-YoutubeSearch* youtube_search(mem_arena* arena, const char* query, int max_results) {
-    YoutubeSearch* s = PUSH_STRUCT(arena, YoutubeSearch);
+Search* search_start(mem_arena* arena, const char* query, int max_results) {
+    Search* s = PUSH_STRUCT(arena, Search);
     memset(s, 0, sizeof(*s));
 
     s->arena = arena;
     s->max_results = max_results;
     strncpy(s->query, query, sizeof(s->query)-1);
 
-    pthread_create(&s->thread, NULL, youtube_search_thread, s);
+    pthread_create(&s->thread, NULL, search_thread, s);
     return s;
 }
 
-bool youtube_search_done(YoutubeSearch* s) {
+bool search_done(Search* s) {
     if (!s) return false;
     if (!s->done) return false;
     return true;
 }
 
-SearchResults* youtube_search_results(YoutubeSearch* s) {
+SearchResults* search_results(Search* s) {
     return s->success ? s->results : NULL;
 }
 
-YoutubeDownload* youtube_download(mem_arena* arena, const char* url, const char* out_dir) {
-    YoutubeDownload* d = PUSH_STRUCT(arena, YoutubeDownload);
+Download* download_start(mem_arena* arena, const char* url, const char* out_dir) {
+    Download* d = PUSH_STRUCT(arena, Download);
     memset(d, 0, sizeof(*d));
 
     d->arena = arena;
     strncpy(d->url, url, sizeof(d->url)-1);
     strncpy(d->out_dir, out_dir, sizeof(d->out_dir)-1);
 
-    pthread_create(&d->thread, NULL, youtube_download_thread, d);
+    pthread_create(&d->thread, NULL, download_thread, d);
     return d;
 }
 
-bool youtube_download_done(YoutubeDownload* d) {
+bool download_done(Download* d) {
     if (!d) return false;
     if (!d->done) return false;
     return true;
