@@ -1,7 +1,6 @@
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
 
-
 #include "core/core.h"
 #include "core/queue.h"
 #include "raylib.h"
@@ -16,6 +15,7 @@
 #include "ctype.h"
 #include <assert.h>
 
+#include "multi_font/multi_font.c"
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
 #include "../external/raylib_renderer.c"
@@ -32,11 +32,6 @@
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
 
-#define IMGS_PATH "../assets/imgs/"
-#define FONTS_PATH "../assets/fonts/"
-
-#include "assets/Poppins_Regular.h"
-#include "assets/Poppins_SemiBold.h"
 #include "assets/next.h"
 #include "assets/pause.h"
 #include "assets/play.h"
@@ -61,8 +56,9 @@
 
 #define COLOR_HOVER COLOR_BACKGROUND_DARK
 
-#define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY })
-#define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY })
+#define FONT_SIZE 16
+#define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY })
+#define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY })
 
 #define RAYLIB_VECTOR2_TO_CLAY_VECTOR2(vector) (Clay_Vector2) { .x = vector.x, .y = vector.y }
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
@@ -171,10 +167,49 @@ pthread_mutex_t song_loading_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_mutex_t arena_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static Font fonts[2] = {0};
+static volatile bool fonts_need_rebuild = false;
+
+
 void print_help(char* program_name) {
     printf("%s: [folder]\n", program_name);
     printf("    PATH TO FOLDER TO SCAN\n");
     exit(-1);
+}
+
+const char* preferred[] = { "Noto Sans", "Noto Sans CJK SC" };
+
+void RebuildFonts(void) {
+    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core));
+
+    // Collect all strings
+    size_t song_count = core_get_queue_count(core);
+    const char** all_strings = malloc(sizeof(char*) * song_count * 3 + 1);
+    int str_count = 0;
+
+    for (size_t i = 0; i < song_count; i++) {
+        Song* s = core_get_song_at(core, i);
+        all_strings[str_count++] = arena_get_string(string_arena, s->title);
+        all_strings[str_count++] = arena_get_string(string_arena, s->artists);
+        all_strings[str_count++] = arena_get_string(string_arena, s->album);
+    }
+
+    int cp_count = 0;
+    int* codepoints = CollectCodepoints(all_strings, str_count, &cp_count);
+    free(all_strings);
+
+    TraceLog(LOG_INFO, "FONTS: %d unique codepoints collected", cp_count);
+
+    // Unload old fonts if they exist
+    if (fonts[0].texture.id != 0) UnloadFont(fonts[0]);
+    if (fonts[1].texture.id != 0) UnloadFont(fonts[1]);
+
+    fonts[0] = BuildMultiFontAtlas("Poppins",           preferred, 2, FONT_SIZE, codepoints, cp_count);
+    fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, codepoints, cp_count);
+
+    Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
+
+    TraceLog(LOG_INFO, "FONTS: atlas rebuilt OK");
 }
 
 void add_song_from_path(FilePathList files) {
@@ -215,38 +250,38 @@ void processPendingTextures(void)
     pthread_mutex_unlock(&arena_mutex);
 }
 
-
 void* load_songs_thread_func(void* arg) {
     LoadSongsThreadData* data = (LoadSongsThreadData*)arg;
 
     double start_time = GetTime();
     TraceLog(LOG_INFO, "Starting threaded song loading for %zu files", data->files.count);
 
-    for (size_t i = 0; i < data->files.count; i++)
-    {
+    for (size_t i = 0; i < data->files.count; i++) {
         char* filepath = data->files.paths[i];
         Song* song = createSong(filepath);
-        if (song){
+        if (song) {
             core_send_command(data->core, (CoreCommand){ .type = CMD_QUEUE_ADD, .song = song });
         } else {
             TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
         }
+
+        pthread_mutex_lock(&song_loading_mutex);
+        fonts_need_rebuild = true;
+        pthread_mutex_unlock(&song_loading_mutex);
     }
 
-    TraceLog(LOG_INFO, "Thread finished loading. Queue size: %d", core_get_queue_count(data->core));
-    TraceLog(LOG_INFO, "Loading took: %f seconds", GetTime() - start_time);
+    TraceLog(LOG_INFO, "Thread finished. Queue: %d, took: %f s",
+             core_get_queue_count(data->core), GetTime() - start_time);
 
+    // Final rebuild to catch the last batch
     pthread_mutex_lock(&song_loading_mutex);
     loading_songs = false;
+    fonts_need_rebuild = true;
     pthread_mutex_unlock(&song_loading_mutex);
 
-    if (data->is_file_dropped) {
-        UnloadDroppedFiles(data->files);
-    } else {
-        UnloadDirectoryFiles(data->files);
-    }
+    if (data->is_file_dropped) UnloadDroppedFiles(data->files);
+    else                       UnloadDirectoryFiles(data->files);
     free(data);
-
     return NULL;
 }
 
@@ -328,21 +363,13 @@ int main(int argc, char** argv) {
     SetWindowIcon(icon);
     UnloadImage(icon);
 
-    Font poppins_regular = LoadFont_Poppins_Regular();
-    Font poppins_semibold = LoadFont_Poppins_SemiBold();
-
-    Font fonts[] = {
-        poppins_regular,
-        poppins_semibold,
-    };
-
-   	SetTextureFilter(fonts[0].texture, TEXTURE_FILTER_BILINEAR);
-   	SetTextureFilter(fonts[1].texture, TEXTURE_FILTER_BILINEAR);
-
+    int bootstrap_cps[95];
+    for (int i = 0; i < 95; i++) bootstrap_cps[i] = 0x20 + i;
+    fonts[0] = BuildMultiFontAtlas("Poppins",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
+    fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, bootstrap_cps, 95);
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
     for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
-
 
     if (argc > 1 || IsPathFile(argv[1])) {
         working_path = argv[1];
@@ -478,6 +505,17 @@ int main(int argc, char** argv) {
 
         processPendingTextures();
 
+        pthread_mutex_lock(&song_loading_mutex);
+        bool do_rebuild = fonts_need_rebuild;
+        if (do_rebuild) fonts_need_rebuild = false;
+        pthread_mutex_unlock(&song_loading_mutex);
+
+        if (do_rebuild) {
+            // Also force Clay to re-measure everything
+            RebuildFonts();
+            reinitializeClay = true;
+        }
+
         //GET DEFAULT DATA FOR MOUSE AND DIMENSION
         Vector2 mouseWheelDelta = GetMouseWheelMoveV();
         if (!Vector2Equals(mouseWheelDelta, Vector2Zero())) {
@@ -535,11 +573,11 @@ int main(int argc, char** argv) {
             CLAY(CLAY_ID("TABS_CONTAINER"), { .layout = { .layoutDirection = CLAY_LEFT_TO_RIGHT, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_QUEUE) ? COLOR_SECONDARY : Clay_Hovered() ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_QUEUE);
-                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
+                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
                 }
                 CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_SEARCH) ? COLOR_SECONDARY : Clay_Hovered() ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_SEARCH);
-                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
+                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
                 }
                 CLAY(CLAY_ID("SEARCH_BAR"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}, .padding = CLAY_PADDING_ALL(8) }, .clip = { .horizontal = true, .vertical = true }, .backgroundColor = searchBarActive ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND }) {
                     Clay_OnHover(HandleSearchInteraction, NULL);
@@ -557,7 +595,7 @@ int main(int argc, char** argv) {
                         CLAY_TEXT(searchText, TEXT_CONFIG_24);
                     } else {
                         CLAY_TEXT(CLAY_STRING("Click to search..."), CLAY_TEXT_CONFIG({
-                            .fontSize = 20,
+                            .fontSize = FONT_SIZE,
                             .textColor = {150,150,150,255}
                         }));
                     }
@@ -567,6 +605,7 @@ int main(int argc, char** argv) {
             if (currentTab == TABS_QUEUE) {
                 CLAY(CLAY_ID("QUEUE_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND}) {
                     size_t matchCount = 0;
+
                     for (size_t i = 0; i < core_get_queue_count(core); i++) {
                         Song *song = core_get_song_at(core, i);
                         if (songMatchesSearch(song, searchQuery)) {
@@ -658,7 +697,7 @@ int main(int argc, char** argv) {
                     CLAY(CLAY_ID("SLIDER_FRAME"), { .layout = { .padding = { .left = 8, .right = 8 } , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .childGap = 8, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
 
                         Clay_String time_played = timeStringFromFloat(ui_arena, core->audio->vtable->position(core->audio));
-                        CLAY_TEXT(time_played, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
+                        CLAY_TEXT(time_played, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
 
                         CLAY(CLAY_ID("SLIDER"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(20)}, .padding = CLAY_PADDING_ALL(2) }, .backgroundColor = COLOR_BACKGROUND}) {
                             Clay_OnHover(HandleSliderInteraction, NULL);
@@ -667,7 +706,7 @@ int main(int argc, char** argv) {
                         }
 
                         Clay_String time_duration = timeStringFromFloat(ui_arena, song->length);
-                        CLAY_TEXT(time_duration, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = 24, .textColor = COLOR_TEXT_SECONDARY }));
+                        CLAY_TEXT(time_duration, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
                     }
 
                     CLAY(CLAY_ID("BUTTON_FRAME"), { .layout = { .padding = { 8, 8, 8, 8} , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}, .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
@@ -776,6 +815,9 @@ int main(int argc, char** argv) {
     core_stop(core);
     core_destroy(core);
     raylib_audio_backend_destroy(audio);
+
+    UnloadFont(fonts[0]);
+    UnloadFont(fonts[1]);
 
     UnloadMusicStream(music);
     vectorFree(&covers_textures);
@@ -951,7 +993,7 @@ void renderSong(Song* song) {
             .backgroundColor = color
         }) {
             Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
-            CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = 24, .textColor = is_playing ? COLOR_SECONDARY : COLOR_TEXT_PRIMARY }));
+            CLAY_TEXT(string_title, CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = FONT_SIZE, .textColor = is_playing ? COLOR_SECONDARY : COLOR_TEXT_PRIMARY }));
             Clay_String string_artists = { .chars = song_artists, .length = strlen(song_artists), .isStaticallyAllocated = false };
             CLAY_TEXT(string_artists, TEXT_CONFIG_24);
         }

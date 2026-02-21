@@ -1,3 +1,4 @@
 CompileFlags:
   Add:
     - -I/home/zach/ffmpeg-static/include
+    - -I/usr/include/freetype2
