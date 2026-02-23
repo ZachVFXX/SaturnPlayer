@@ -364,7 +364,7 @@ int main(int argc, char** argv) {
     SetWindowIcon(icon);
     UnloadImage(icon);
 
-    SetExitKey(KEY_NULL);
+    // SetExitKey(KEY_NULL);
 
     int bootstrap_cps[95];
     for (int i = 0; i < 95; i++) bootstrap_cps[i] = 0x20 + i;
@@ -699,12 +699,16 @@ int main(int argc, char** argv) {
                 const char* song_title = arena_get_string(string_arena, song->title);
                 const char* song_artists = arena_get_string(string_arena, song->artists);
 
-                CLAY(CLAY_ID("PLAYER"), { .clip = { .horizontal = true, .vertical = true }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(140)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
-                    Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
-                    CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
+                CLAY(CLAY_ID("PLAYER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(140)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
+                    CLAY_AUTO_ID({ .clip = { true, true}, .layout = { .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}}) {
+                        Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
+                        CLAY_TEXT(string_title, TEXT_CONFIG_24_BOLD);
+                    }
 
-                    Clay_String string_artists = { .chars = song_artists, .length = strlen(song_artists), .isStaticallyAllocated = false };
-                    CLAY_TEXT(string_artists, TEXT_CONFIG_24);
+                    CLAY_AUTO_ID({ .clip = { true, true}, .layout = { .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}}) {
+                        Clay_String string_artists = { .chars = song_artists, .length = strlen(song_artists), .isStaticallyAllocated = false };
+                        CLAY_TEXT(string_artists, TEXT_CONFIG_24);
+                    }
                     CLAY(CLAY_ID("SLIDER_FRAME"), { .layout = { .padding = { .left = 8, .right = 8 } , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .childGap = 8, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
 
                         Clay_String time_played = timeStringFromFloat(ui_arena, core->audio->vtable->position(core->audio));
@@ -998,7 +1002,7 @@ void renderSong(Song* song) {
         CLAY_AUTO_ID({
             .layout = {
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)},
+                .sizing = { .width = CLAY_SIZING_PERCENT(0.4), .height = CLAY_SIZING_GROW(0)},
                 .padding = {8, 8, 8, 8},
                 .childGap = 16
             },
