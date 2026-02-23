@@ -363,6 +363,8 @@ int main(int argc, char** argv) {
     SetWindowIcon(icon);
     UnloadImage(icon);
 
+    SetExitKey(KEY_NULL);
+
     int bootstrap_cps[95];
     for (int i = 0; i < 95; i++) bootstrap_cps[i] = 0x20 + i;
     fonts[0] = BuildMultiFontAtlas("Poppins",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
@@ -470,6 +472,7 @@ int main(int argc, char** argv) {
         if (IsKeyPressed(KEY_ENTER) && searchBarActive && strlen(searchQuery) > 0) {
             if (!searcher) {
                 arena_clear(search_arena);
+                currentSearchResults = NULL;
                 searcher = search_start(search_arena, searchQuery, 10);
                 currentTab = TABS_SEARCH;
             }

@@ -1,4 +1,5 @@
 #pragma once
+#include <raylib.h>
 #include <stddef.h>
 #define SUBPROCESS_IMPLEMENTATION
 #include "../external/subprocess.h"
@@ -9,6 +10,9 @@
 #include <stdio.h>
 
 #include "utils/arena.h"
+
+#include "utils/string.c"
+
 
 #define MAX_SEARCH_RESULTS 16
 
@@ -51,9 +55,30 @@ typedef struct {
 static void* search_thread(void* arg) {
     Search* s = arg;
 
+    StringView sv = sv_from_cstr(s->query);
     char search_arg[512];
-    snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s",
-             s->max_results, s->query);
+
+    if (sv_starts_with(sv, sv_from_cstr("!")) && sv_contains(sv, sv_from_cstr("search:"))) {
+            StringView sv2 = {0};
+            size_t index = sv_find(sv, sv_from_cstr(":"));
+            sv2.data = sv.data + 1;
+            sv2.count = index - 1;
+            StringBuilder website = sb_from_sv(sv2);
+
+            sv2.data = sv.data + index + 1;
+            sv2.count = sv.count - index;
+
+            StringView sv_query = sv_trim(sv2);
+
+            StringBuilder query = sb_from_sv(sv_query);
+
+
+            snprintf(search_arg, sizeof(search_arg), "%.*s%d:%.*s", (int)website.count, website.items, s->max_results, (int)query.count, query.items);
+    } else {
+        snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s", s->max_results, s->query);
+    }
+
+    TraceLog(LOG_INFO, "QUERY: %s", search_arg);
 
     const char* args[] = {
         "yt-dlp",
