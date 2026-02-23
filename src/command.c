@@ -71,9 +71,9 @@ static void* search_thread(void* arg) {
             StringView sv_query = sv_trim(sv2);
 
             StringBuilder query = sb_from_sv(sv_query);
-
-
             snprintf(search_arg, sizeof(search_arg), "%.*s%d:%.*s", (int)website.count, website.items, s->max_results, (int)query.count, query.items);
+            sb_free(&website);
+            sb_free(&query);
     } else {
         snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s", s->max_results, s->query);
     }

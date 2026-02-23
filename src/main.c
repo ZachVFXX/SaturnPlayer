@@ -208,7 +208,7 @@ void RebuildFonts(void) {
     fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, codepoints, cp_count);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
-
+    free(codepoints);
     TraceLog(LOG_INFO, "FONTS: atlas rebuilt OK");
 }
 
@@ -328,7 +328,8 @@ int main(int argc, char** argv) {
 
     // Clay initialisation
     int totalMemorySize = Clay_MinMemorySize();
-    Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
+    void* clay_memory_ptr = malloc(totalMemorySize);
+    Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, clay_memory_ptr);
     Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)DEFAULT_WIDTH, (float)DEFAULT_HEIGHT }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
@@ -492,11 +493,18 @@ int main(int argc, char** argv) {
         }
 
         if (reinitializeClay) {
-            totalMemorySize = Clay_MinMemorySize();
-            clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
-            Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)GetScreenWidth(), (float)GetScreenHeight() }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
+            pthread_mutex_lock(&song_loading_mutex);
+            totalMemorySize = Clay_MinMemorySize() * 2;
+
+            void* new_clay_memory_ptr = malloc(totalMemorySize);
+            clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, new_clay_memory_ptr);
+            Clay_Initialize(clayMemory, (Clay_Dimensions){ (float)GetScreenWidth(), (float)GetScreenHeight() }, (Clay_ErrorHandler){ HandleClayErrors, 0 });
             Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
+
+            free(clay_memory_ptr);
+            clay_memory_ptr = new_clay_memory_ptr;
             reinitializeClay = false;
+            pthread_mutex_unlock(&song_loading_mutex);
         }
 
         if (IsFileDropped()) {
@@ -831,6 +839,7 @@ int main(int argc, char** argv) {
     arena_destroy(string_arena);
     CloseAudioDevice();
     Clay_Raylib_Close();
+    free(clay_memory_ptr);
     return 0;
 }
 
