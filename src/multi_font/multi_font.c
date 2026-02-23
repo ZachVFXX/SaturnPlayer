@@ -5,6 +5,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "stdint.h"
+#include "stdbool.h"
+#include "raylib.h"
 
 #define ATLAS_SIZE 4096
 #define GLYPH_PAD  2
