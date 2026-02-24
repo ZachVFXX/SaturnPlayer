@@ -181,7 +181,7 @@ const char* preferred[] = { "Noto Sans", "Noto Sans CJK SC" };
 
 void RebuildFonts(void) {
     TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core) + ((currentSearchResults != NULL) ? currentSearchResults->count : 0));
-
+    // TODO: Make an atlas and add the char one time and dont rebuild it from scratch. Add function to verify if a string is renderable
     // Collect all strings
     size_t query = (TextLength(searchQuery) != 0) ? TextLength(searchQuery) : 0;
     size_t search_count = (currentSearchResults != NULL) ? currentSearchResults->count : 0;
