@@ -406,7 +406,7 @@ int main(int argc, char** argv) {
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
-    FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
+    FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", true);
     start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())
@@ -554,8 +554,33 @@ int main(int argc, char** argv) {
         if (IsFileDropped()) {
             TraceLog(LOG_INFO, "FILE DROPPED !");
             FilePathList droppedFiles = LoadDroppedFiles();
-            start_loading_songs_async(droppedFiles, true);
+
+            Vector pathVector;
+            vectorInit(&pathVector, sizeof(char *), 16);
+
+            for (int i = 0; i < (int)droppedFiles.count; i++) {
+                if (!IsPathFile(droppedFiles.paths[i])) {
+                    FilePathList dirFiles = LoadDirectoryFilesEx(droppedFiles.paths[i], ".mp3", true);
+                    for (int j = 0; j < (int)dirFiles.count; j++) {
+                        char *path = strdup(dirFiles.paths[j]);
+                        vectorAppend(&pathVector, &path);
+                    }
+                    UnloadDirectoryFiles(dirFiles);
+                } else {
+                    char *path = strdup(droppedFiles.paths[i]);
+                    vectorAppend(&pathVector, &path);
+                }
+            }
+
+            FilePathList mergedFiles = { 0 };
+            mergedFiles.count    = pathVector.count;
+            mergedFiles.capacity = pathVector.count; // Raylib frees up to capacity
+            mergedFiles.paths    = (char **)pathVector.data;
+
+            start_loading_songs_async(mergedFiles, true); // thread calls UnloadDirectoryFiles(mergedFiles)
             TraceLog(LOG_ERROR, "Current song loaded: %ul.", core_get_queue_count(core));
+
+            UnloadDroppedFiles(droppedFiles);
         }
 
         processPendingTextures();
