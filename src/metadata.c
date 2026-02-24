@@ -1,12 +1,10 @@
 #include <libavformat/avformat.h>
-#include <raylib.h>
+#include "../raylib/include/raylib.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
-
 typedef struct {
     unsigned char* data;
     size_t size;

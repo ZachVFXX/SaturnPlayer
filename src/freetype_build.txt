@@ -1,0 +1,5 @@
+./configure --host=x86_64-w64-mingw32 \
+            --prefix=$(pwd)/../freetype_build \
+            --without-zlib --without-bzip2 --without-png
+make -j$(nproc)
+make install

@@ -16,6 +16,12 @@
 
 #define MAX_SEARCH_RESULTS 16
 
+#if defined(_WIN32)
+const char* ytdlp = "yt-dlp.exe";
+#else
+const char* ytdlp = "yt-dlp";
+#endif
+
 typedef struct {
     char* id;
     char* title;
@@ -44,8 +50,8 @@ typedef struct {
 typedef struct {
     pthread_t thread;
     mem_arena* arena;
-    char url[512];
-    char out_dir[512];
+    char url[2048];
+    char out_dir[2048];
 
     char* final_path;
     bool done;
@@ -81,7 +87,7 @@ static void* search_thread(void* arg) {
     TraceLog(LOG_INFO, "QUERY: %s", search_arg);
 
     const char* args[] = {
-        "yt-dlp",
+        ytdlp,
         "--print",
         "%(id)s|%(title)s|%(uploader)s|%(duration_string)s|%(webpage_url)s",
         "--skip-download",
@@ -94,7 +100,7 @@ static void* search_thread(void* arg) {
 
     struct subprocess_s p;
     if (subprocess_create(args,
-        subprocess_option_search_user_path, &p) != 0) {
+        subprocess_option_search_user_path | subprocess_option_no_window | subprocess_option_inherit_environment, &p) != 0) {
         s->done = true;
         return NULL;
     }
@@ -158,10 +164,9 @@ static void* search_thread(void* arg) {
 
 static void* download_thread(void* arg) {
     Download* d = arg;
-    // TODO: ADD OTHER TYPE LIKE SOUNDCLOUD
     // TODO: ADD WAY TO DOWNLOAD PLAYLIST TO
     const char* args[] = {
-        "yt-dlp",
+        ytdlp,
         "-x",
         "--audio-format", "mp3",
         "--audio-quality", "0",
@@ -177,7 +182,7 @@ static void* download_thread(void* arg) {
 
     struct subprocess_s p;
     if (subprocess_create(args,
-        subprocess_option_search_user_path, &p) != 0) {
+        subprocess_option_search_user_path | subprocess_option_no_window | subprocess_option_inherit_environment, &p) != 0) {
         d->done = true;
         return NULL;
     }
@@ -187,10 +192,26 @@ static void* download_thread(void* arg) {
 
     while ((n = subprocess_read_stdout(&p, buf, sizeof(buf)-1)) > 0) {
         buf[n] = 0;
+
+        // Strip \n
         char* nl = strchr(buf, '\n');
         if (nl) *nl = 0;
-        if (*buf)
-            d->final_path = arena_strdup(d->arena, buf);
+
+        // Strip trailing \r (Windows CRLF)
+        int len = strlen(buf);
+        while (len > 0 && (buf[len-1] == '\r' || buf[len-1] == ' '))
+            buf[--len] = 0;
+
+        if (*buf) d->final_path = arena_strdup(d->arena, buf);
+    }
+    TraceLog(LOG_ERROR, "%s", d->final_path);
+
+    // Temporarily add this to debug:
+    char errbuf[4096] = {0};
+    int en;
+    while ((en = subprocess_read_stderr(&p, errbuf, sizeof(errbuf)-1)) > 0) {
+        errbuf[en] = 0;
+        TraceLog(LOG_WARNING, "SUBPROCESS STDERR: %s", errbuf);
     }
 
     int ec;
@@ -225,13 +246,13 @@ SearchResults* search_results(Search* s) {
 }
 
 Download* download_start(mem_arena* arena, const char* url, const char* out_dir) {
+    TraceLog(LOG_WARNING, "Starting downloading of %s to %s", url, out_dir);
     Download* d = PUSH_STRUCT(arena, Download);
     memset(d, 0, sizeof(*d));
 
     d->arena = arena;
     strncpy(d->url, url, sizeof(d->url)-1);
     strncpy(d->out_dir, out_dir, sizeof(d->out_dir)-1);
-
     pthread_create(&d->thread, NULL, download_thread, d);
     return d;
 }

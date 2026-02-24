@@ -1,0 +1,46 @@
+CC = x86_64-w64-mingw32-gcc
+
+WIN_DEPS_PATH = ..
+RAYLIB_PATH   = $(WIN_DEPS_PATH)/raylib
+FFMPEG_PATH   = $(WIN_DEPS_PATH)/ffmpeg_build
+FREETYPE_PATH = $(WIN_DEPS_PATH)/freetype_build
+
+CFLAGS = -std=c99 -Wall -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
+CDEBUGFLAGS = -ggdb
+CRELEASEFLAGS = -O3 -mwindows
+
+FFMPEG_LIB_DIR = $(FFMPEG_PATH)/lib
+
+INCLUDES = -I$(RAYLIB_PATH)/include \
+           -I$(FFMPEG_PATH)/include \
+           -I$(FREETYPE_PATH)/include \
+           -I./src
+
+LIBS = -L$(RAYLIB_PATH)/lib -lraylib \
+       $(FFMPEG_LIB_DIR)/libavformat.a \
+       $(FFMPEG_LIB_DIR)/libavcodec.a \
+       $(FFMPEG_LIB_DIR)/libavutil.a \
+       -L$(FREETYPE_PATH)/lib -lfreetype \
+       -lopengl32 -lgdi32 -lwinmm -lws2_32 -lpthread -lm -lbcrypt
+
+# --- Sources ---
+# Unity Build : uniquement main.c
+SRCS = main.c
+OBJS = main.o
+
+debug: main.exe
+
+release: main_release.exe
+
+main.exe: $(OBJS)
+	$(CC) -o $@ $^ $(LIBS) $(CDEBUGFLAGS)
+
+main_release.exe: $(OBJS)
+	$(CC) -o $@ $^ $(LIBS) $(CRELEASEFLAGS)
+
+# Règle de compilation unique
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS) $(INCLUDES) $(CDEBUGFLAGS)
+
+clean:
+	rm -f *.o *.exe

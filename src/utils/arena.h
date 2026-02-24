@@ -3,6 +3,12 @@
 #ifndef ARENA_H
 #define ARENA_H
 
+#if defined(_WIN32) && !defined(WIN32_LEAN_AND_MEAN)
+    #define WIN32_LEAN_AND_MEAN
+    #define NOGDI
+    #define NOUSER
+#endif
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>

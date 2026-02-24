@@ -1,7 +1,6 @@
 #include "audio_backend.h"
-#include <raylib.h>
+#include "../../raylib/include/raylib.h"
 #include <stdlib.h>
-#include <string.h>
 
 typedef struct {
     Music music;

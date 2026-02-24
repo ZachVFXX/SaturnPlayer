@@ -1,10 +1,15 @@
+#if defined(_WIN32)
+    #define NOGDI
+    #define NOUSER
+#endif
+
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
 
 #include "core/core.h"
 #include "core/queue.h"
-#include "../raylib/src/raylib.h"
-#include "../raylib/src/raymath.h"
+#include "../raylib/include/raylib.h"
+#include "../raylib/include/raymath.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -15,7 +20,12 @@
 #include "ctype.h"
 #include <assert.h>
 
-#include "multi_font/multi_font.c"
+#ifndef _WIN32
+#include "multi_font/multi_font_unix.c"
+#else
+#include "multi_font/multi_font_win.c"
+#endif
+
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
 #include "../external/raylib_renderer.c"
@@ -218,7 +228,7 @@ void RebuildFonts(void) {
     if (fonts[0].texture.id != 0) UnloadFont(fonts[0]);
     if (fonts[1].texture.id != 0) UnloadFont(fonts[1]);
 
-    fonts[0] = BuildMultiFontAtlas("Poppins",           preferred, 2, FONT_SIZE, codepoints, cp_count);
+    fonts[0] = BuildMultiFontAtlas("Poppins Light",           preferred, 2, FONT_SIZE, codepoints, cp_count);
     fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, codepoints, cp_count);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
@@ -346,7 +356,7 @@ int main(int argc, char** argv) {
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, clay_memory_ptr);
     Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)DEFAULT_WIDTH, (float)DEFAULT_HEIGHT }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
 
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_ALWAYS_RUN);
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Saturn Player");
     InitAudioDevice();
 
@@ -382,7 +392,7 @@ int main(int argc, char** argv) {
 
     int bootstrap_cps[95];
     for (int i = 0; i < 95; i++) bootstrap_cps[i] = 0x20 + i;
-    fonts[0] = BuildMultiFontAtlas("Poppins",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
+    fonts[0] = BuildMultiFontAtlas("Poppins Light",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
     fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, bootstrap_cps, 95);
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
@@ -396,7 +406,7 @@ int main(int argc, char** argv) {
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
-    FilePathList music_files = LoadDirectoryFiles(working_path);
+    FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", false);
     start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())
@@ -556,9 +566,7 @@ int main(int argc, char** argv) {
         pthread_mutex_unlock(&song_loading_mutex);
 
         if (do_rebuild) {
-            // Also force Clay to re-measure everything
             RebuildFonts();
-            reinitializeClay = true;
         }
 
         //GET DEFAULT DATA FOR MOUSE AND DIMENSION
@@ -792,14 +800,14 @@ int main(int argc, char** argv) {
         }
 
         if (debugEnabled) {
-            CLAY(CLAY_ID("DEBUG_PANEL"), { .floating = { .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID, .parentId = CLAY_ID("WINDOW").id }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {  .height = CLAY_SIZING_FIT(0), .width = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(16)}, .backgroundColor = COLOR_PRIMARY}) {
+            CLAY(CLAY_ID("DEBUG_PANEL"), { .floating = { .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID, .parentId = CLAY_ID("WINDOW").id }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {  .height = CLAY_SIZING_FIT(0), .width = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(16)}, .backgroundColor = (Clay_Color){ 0, 0, 0, 255}}) {
                 char* buf = arena_push(ui_arena, 256, false);
-                snprintf(buf, 256, "Song ARENA: %lu/%lu = %lf\n", song_arena->pos, song_arena->reserve_size, (double_t)song_arena->pos / song_arena->reserve_size);
+                snprintf(buf, 256, "Song ARENA: %zu/%zu = %lf\n", song_arena->pos, song_arena->reserve_size, (double_t)song_arena->pos / song_arena->reserve_size);
                 Clay_String string = { .chars = buf, .isStaticallyAllocated = false, .length = strlen(buf)};
                 CLAY_TEXT(string , TEXT_CONFIG_24);
 
                 char* buf2 = arena_push(ui_arena, 256, false);
-                snprintf(buf2, 256, "Ui ARENA: %lu/%lu = %lf\n", ui_arena->pos, ui_arena->reserve_size, (double_t)ui_arena->pos / ui_arena->reserve_size);
+                snprintf(buf2, 256, "Ui ARENA: %zu/%zu = %lf\n", ui_arena->pos, ui_arena->reserve_size, (double_t)ui_arena->pos / ui_arena->reserve_size);
                 Clay_String string2 = { .chars = buf2, .isStaticallyAllocated = false, .length = strlen(buf2)};
                 CLAY_TEXT(string2 , TEXT_CONFIG_24);
 
@@ -1388,15 +1396,11 @@ bool songMatchesSearch(Song* song, const char* query) {
     }
     lowerAlbum[albumLen] = '\0';
 
-    return (strstr(lowerTitle, lowerQuery) != NULL ||
-            strstr(lowerArtist, lowerQuery) != NULL ||
-            strstr(lowerAlbum, lowerQuery) != NULL);
+    return (strstr(lowerTitle, lowerQuery) != NULL || strstr(lowerArtist, lowerQuery) != NULL || strstr(lowerAlbum, lowerQuery) != NULL);
 }
 
 void togglePlayPause() {
     CorePlaybackState curr_core = core_get_state(core);
-    if (curr_core == CORE_PLAYING)
-        core_send_command(core, (CoreCommand){ .type = CMD_PAUSE });
-    else if (curr_core == CORE_PAUSED)
-        core_send_command(core, (CoreCommand){ .type = CMD_RESUME });
+    if (curr_core == CORE_PLAYING) core_send_command(core, (CoreCommand){ .type = CMD_PAUSE });
+    else if (curr_core == CORE_PAUSED) core_send_command(core, (CoreCommand){ .type = CMD_RESUME });
 }
