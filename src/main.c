@@ -3,8 +3,8 @@
 
 #include "core/core.h"
 #include "core/queue.h"
-#include "raylib.h"
-#include <raymath.h>
+#include "../raylib/src/raylib.h"
+#include "../raylib/src/raymath.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -180,11 +180,13 @@ void print_help(char* program_name) {
 const char* preferred[] = { "Noto Sans", "Noto Sans CJK SC" };
 
 void RebuildFonts(void) {
-    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core));
+    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core) + ((currentSearchResults != NULL) ? currentSearchResults->count : 0));
 
     // Collect all strings
+    size_t query = (TextLength(searchQuery) != 0) ? TextLength(searchQuery) : 0;
+    size_t search_count = (currentSearchResults != NULL) ? currentSearchResults->count : 0;
     size_t song_count = core_get_queue_count(core);
-    const char** all_strings = malloc(sizeof(char*) * song_count * 3 + 1);
+    const char** all_strings = malloc(sizeof(char*) * (song_count + search_count + query) * 3 + 1);
     int str_count = 0;
 
     for (size_t i = 0; i < song_count; i++) {
@@ -193,6 +195,18 @@ void RebuildFonts(void) {
         all_strings[str_count++] = arena_get_string(string_arena, s->artists);
         all_strings[str_count++] = arena_get_string(string_arena, s->album);
     }
+
+    if (currentSearchResults != NULL) {
+        for (int i = 0; i < currentSearchResults->count; i++) {
+            all_strings[str_count++] = currentSearchResults->results[i].artist;
+            all_strings[str_count++] = currentSearchResults->results[i].title;
+        }
+    }
+
+    if (TextLength(searchQuery) != 0) {
+        all_strings[str_count++] = searchQuery;
+    }
+
 
     int cp_count = 0;
     int* codepoints = CollectCodepoints(all_strings, str_count, &cp_count);
@@ -402,9 +416,26 @@ int main(int argc, char** argv) {
                 {
                     memcpy(searchQuery + length, utf8, byteSize);
                     searchQuery[length + byteSize] = '\0';
+                    pthread_mutex_lock(&song_loading_mutex);
+                    fonts_need_rebuild = true;
+                    pthread_mutex_unlock(&song_loading_mutex);
                 }
 
                 key = GetCharPressed();
+            }
+
+            if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)) {
+                const char* ctrlv = GetClipboardText();
+                int length = TextLength(searchQuery);
+
+                if (length + strlen(ctrlv) < MAX_SEARCH_LENGTH - 1)
+                {
+                    memcpy(searchQuery + length, ctrlv, strlen(ctrlv));
+                    searchQuery[length + strlen(ctrlv)] = '\0';
+                    pthread_mutex_lock(&song_loading_mutex);
+                    fonts_need_rebuild = true;
+                    pthread_mutex_unlock(&song_loading_mutex);
+                }
             }
 
             if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE))
@@ -482,6 +513,9 @@ int main(int argc, char** argv) {
         if (searcher && search_done(searcher)) {
             currentSearchResults = search_results(searcher);
             searcher = NULL;
+            pthread_mutex_lock(&song_loading_mutex);
+            fonts_need_rebuild = true;
+            pthread_mutex_unlock(&song_loading_mutex);
         }
 
         if (downloader && download_done(downloader)) {

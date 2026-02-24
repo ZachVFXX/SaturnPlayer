@@ -1,24 +1,23 @@
 CC = gcc
+
 CFLAGS = -std=c99 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L
 CDEBUGFLAGS = -fsanitize=address -ggdb
 CRELEASEFLAGS = -O3
 
-FREETYPE_CFLAGS = -I/usr/include/freetype2
-FREETYPE_LIBS   = -lfreetype
-FONTCONFIG_LIBS = -lfontconfig
+PKG_CONFIG = pkg-config
 
-FFMPEG_DIR = $(HOME)/ffmpeg-static
-FFMPEG_CFLAGS = -I$(FFMPEG_DIR)/include
-FFMPEG_LIBS = $(FFMPEG_DIR)/lib/libavformat.a \
-              $(FFMPEG_DIR)/lib/libavcodec.a \
-              $(FFMPEG_DIR)/lib/libavutil.a \
-              $(FFMPEG_DIR)/lib/libswresample.a \
-              -llzma -lbz2 -ldrm -lz -lm -lpthread
+FFMPEG_CFLAGS = $(shell $(PKG_CONFIG) --cflags libavformat libavcodec libavutil libswresample)
+FFMPEG_LIBS   = $(shell $(PKG_CONFIG) --libs   libavformat libavcodec libavutil libswresample)
+
+FREETYPE_CFLAGS = $(shell $(PKG_CONFIG) --cflags freetype2)
+FREETYPE_LIBS   = $(shell $(PKG_CONFIG) --libs freetype2)
+
+FONTCONFIG_LIBS = $(shell $(PKG_CONFIG) --libs fontconfig)
 
 LINKRAYLIB = -I/usr/local/include -L../raylib/src -lraylib -lGL -lX11 -lm -lpthread -ldl -lrt
 
-ALL_CFLAGS  = $(CFLAGS) $(FFMPEG_CFLAGS) $(FREETYPE_CFLAGS)
-ALL_LIBS = $(LINKRAYLIB) $(FFMPEG_LIBS) $(FREETYPE_LIBS) $(FONTCONFIG_LIBS)
+ALL_CFLAGS = $(CFLAGS) $(FFMPEG_CFLAGS) $(FREETYPE_CFLAGS)
+ALL_LIBS   = $(LINKRAYLIB) $(FFMPEG_LIBS) $(FREETYPE_LIBS) $(FONTCONFIG_LIBS)
 
 debug: main
 all: main packer
