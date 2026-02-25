@@ -230,7 +230,7 @@ void RebuildFonts(void) {
     if (fonts[0].texture.id != 0) UnloadFont(fonts[0]);
     if (fonts[1].texture.id != 0) UnloadFont(fonts[1]);
 
-    fonts[0] = BuildMultiFontAtlas("Poppins Light",           preferred, 2, FONT_SIZE, codepoints, cp_count);
+    fonts[0] = BuildMultiFontAtlas("Poppins Regular", preferred, 2, FONT_SIZE, codepoints, cp_count);
     fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, codepoints, cp_count);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
@@ -398,7 +398,7 @@ int main(int argc, char** argv) {
 
     int bootstrap_cps[95];
     for (int i = 0; i < 95; i++) bootstrap_cps[i] = 0x20 + i;
-    fonts[0] = BuildMultiFontAtlas("Poppins Light",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
+    fonts[0] = BuildMultiFontAtlas("Poppins Regular",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
     fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, bootstrap_cps, 95);
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 

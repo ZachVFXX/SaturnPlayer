@@ -1,45 +1,53 @@
 CC = gcc
-
 CFLAGS = -std=c99 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L
 CDEBUGFLAGS = -fsanitize=address -ggdb
 CRELEASEFLAGS = -O3
 
-PKG_CONFIG = pkg-config
+DEPS_PATH     = ..
+RAYLIB_PATH   = $(DEPS_PATH)/raylib
+FFMPEG_PATH   = $(DEPS_PATH)/ffmpeg_build
+FREETYPE_PATH = $(DEPS_PATH)/freetype_build
 
-FFMPEG_CFLAGS = $(shell $(PKG_CONFIG) --cflags libavformat libavcodec libavutil libswresample)
-FFMPEG_LIBS   = $(shell $(PKG_CONFIG) --libs   libavformat libavcodec libavutil libswresample)
+FFMPEG_LIB_DIR   = $(FFMPEG_PATH)/lib
+FREETYPE_LIB_DIR = $(FREETYPE_PATH)/lib
 
-FREETYPE_CFLAGS = $(shell $(PKG_CONFIG) --cflags freetype2)
-FREETYPE_LIBS   = $(shell $(PKG_CONFIG) --libs freetype2)
+INCLUDES = -I$(RAYLIB_PATH)/src \
+           -I$(FFMPEG_PATH)/include \
+           -I$(FREETYPE_PATH)/include \
 
-FONTCONFIG_LIBS = $(shell $(PKG_CONFIG) --libs fontconfig)
+ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-LINKRAYLIB = -I/usr/local/include -L../raylib/src -lraylib -lGL -lX11 -lm -lpthread -ldl -lrt
+LIBS = -L$(RAYLIB_PATH)/src -lraylib \
+       $(FFMPEG_LIB_DIR)/libavformat.a \
+       $(FFMPEG_LIB_DIR)/libavcodec.a \
+       $(FFMPEG_LIB_DIR)/libavutil.a \
+       $(FFMPEG_LIB_DIR)/libswresample.a \
+       $(FREETYPE_LIB_DIR)/libfreetype.a \
+       -lGL -lX11 -lm -lpthread -ldl -lrt -lz
 
-ALL_CFLAGS = $(CFLAGS) $(FFMPEG_CFLAGS) $(FREETYPE_CFLAGS)
-ALL_LIBS   = $(LINKRAYLIB) $(FFMPEG_LIBS) $(FREETYPE_LIBS) $(FONTCONFIG_LIBS)
+OBJS = main.o
 
-debug: main
-all: main packer
+debug:   main
 release: main_release
+all:     main packer
 
-main: main.o
-	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(ALL_LIBS)
+main: $(OBJS)
+	$(CC) -o $@ $^ $(LIBS) $(CDEBUGFLAGS)
 
-main_release: main_release.o
-	$(CC) $(CRELEASEFLAGS) -s -o $@ $^ $(ALL_LIBS)
-
-main_release.o: main.c
-	$(CC) $(ALL_CFLAGS) $(CRELEASEFLAGS) -c $< -o $@
-
-main.o: main.c
-	$(CC) $(ALL_CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
+main_release: $(OBJS:.o=.release.o)
+	$(CC) -o $@ $^ $(LIBS) $(CRELEASEFLAGS) -s
 
 packer: packer.o
-	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(LINKRAYLIB)
+	$(CC) -o $@ $^ -L$(RAYLIB_PATH)/src -lraylib -lGL -lX11 -lm -lpthread -ldl -lrt $(CDEBUGFLAGS)
+
+%.o: %.c
+	$(CC) -c $< -o $@ $(ALL_CFLAGS) $(CDEBUGFLAGS)
+
+%.release.o: %.c
+	$(CC) -c $< -o $@ $(ALL_CFLAGS) $(CRELEASEFLAGS)
 
 packer.o: packer.c
-	$(CC) $(CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
+	$(CC) -c $< -o $@ $(CFLAGS) -I$(RAYLIB_PATH)/src $(CDEBUGFLAGS)
 
 clean:
 	rm -f main main_release packer *.o

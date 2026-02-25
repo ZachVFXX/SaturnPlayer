@@ -1,5 +1,13 @@
-./configure --host=x86_64-w64-mingw32 \
-            --prefix=$(pwd)/../freetype_build \
-            --without-zlib --without-bzip2 --without-png
+./configure \
+    --host=x86_64-w64-mingw32 #REMOVE ON LINUX
+    --prefix="$(pwd)/../freetype_build" \
+    --enable-static \
+    --disable-shared \
+    --without-brotli \
+    --without-harfbuzz \
+    --without-png \
+    --without-bzip2 \
+    --with-zlib=no
+
 make -j$(nproc)
 make install
