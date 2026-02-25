@@ -10,8 +10,8 @@
 
 #include "core/core.h"
 #include "core/queue.h"
-#include "../raylib/include/raylib.h"
-#include "../raylib/include/raymath.h"
+#include <raylib.h>
+#include <raymath.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

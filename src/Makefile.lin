@@ -14,10 +14,16 @@ FREETYPE_LIBS   = $(shell $(PKG_CONFIG) --libs freetype2)
 
 FONTCONFIG_LIBS = $(shell $(PKG_CONFIG) --libs fontconfig)
 
-LINKRAYLIB = -I/usr/local/include -L../raylib/src -lraylib -lGL -lX11 -lm -lpthread -ldl -lrt
+RAYLIB_CFLAGS = $(shell $(PKG_CONFIG) --cflags raylib 2>/dev/null)
+RAYLIB_LIBS = $(shell $(PKG_CONFIG) --libs raylib 2>/dev/null)
 
-ALL_CFLAGS = $(CFLAGS) $(FFMPEG_CFLAGS) $(FREETYPE_CFLAGS)
-ALL_LIBS   = $(LINKRAYLIB) $(FFMPEG_LIBS) $(FREETYPE_LIBS) $(FONTCONFIG_LIBS)
+ifeq ($(strip $(RAYLIB_LIBS)),)
+RAYLIB_CFLAGS = -I/usr/local/include
+RAYLIB_LIBS = -L../raylib/src -lraylib -lGL -lX11 -lm -lpthread -ldl -lrt
+endif
+
+ALL_CFLAGS = $(CFLAGS) $(FFMPEG_CFLAGS) $(FREETYPE_CFLAGS) $(RAYLIB_CFLAGS)
+ALL_LIBS   = $(RAYLIB_LIBS) $(FFMPEG_LIBS) $(FREETYPE_LIBS) $(FONTCONFIG_LIBS) -lm
 
 debug: main
 all: main packer
@@ -36,10 +42,10 @@ main.o: main.c
 	$(CC) $(ALL_CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
 
 packer: packer.o
-	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(LINKRAYLIB)
+	$(CC) $(CDEBUGFLAGS) -o $@ $^ $(RAYLIB_LIBS)
 
 packer.o: packer.c
-	$(CC) $(CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(RAYLIB_CFLAGS) $(CDEBUGFLAGS) -c $< -o $@
 
 clean:
 	rm -f main main_release packer *.o

@@ -62,3 +62,8 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Nix
+.direnv/
+result
+result-*

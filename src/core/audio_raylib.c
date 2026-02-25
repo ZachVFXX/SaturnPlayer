@@ -1,5 +1,5 @@
 #include "audio_backend.h"
-#include "../../raylib/include/raylib.h"
+#include <raylib.h>
 #include <stdlib.h>
 
 typedef struct {

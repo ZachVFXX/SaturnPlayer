@@ -30,6 +30,18 @@ Supports downloading songs directly from **YouTube Music**, MP3/WAV/OGG/FLAC pla
 
 ## Build
 
+### Using Nix (Recommended for Linux)
+
+```bash
+git clone https://github.com/ZachVFXX/SaturnPlayer.git
+cd SaturnPlayer
+nix develop  # or use direnv
+cd src && make -f Makefile.lin release
+./main_release ~/Music/
+```
+
+### Manual Build
+
 Requirements:
 
 * C compiler (gcc / clang)
@@ -37,6 +49,8 @@ Requirements:
 * FFmpeg development libraries
 * raylib
 * yt-dlp downloaded and set in path with deno and ffmpeg to path (needed for yt-dlp to fetch and download properly, see the yt-dlp wiki for more info)
+
+#### Linux
 
 On Linux, it use pkg_config. Install the dependencies using your package manager:
 ffmpeg-dev
@@ -50,6 +64,7 @@ cd SaturnPlayer/src/
 make -f Makefile.lin release && ./main_release ~/musics_folders/
 ```
 
+#### Windows
 
 On Windows, download the ffmpeg and freetype source code and use the ffmpeg_build.txt and freetype.txt command to build the require 
 dependencies.

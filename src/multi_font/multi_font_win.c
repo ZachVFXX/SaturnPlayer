@@ -1,4 +1,4 @@
-#include "../../freetype_build/include/ft2build.h"
+#include <ft2build.h>
 #include FT_FREETYPE_H
 
 #include <windows.h>
@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "../../raylib/include/raylib.h"
+#include <raylib.h>
 
 #include <ctype.h>
 

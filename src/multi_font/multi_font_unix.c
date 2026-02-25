@@ -1,5 +1,5 @@
 
-#include "../../freetype/include/ft2build.h"
+#include <ft2build.h>
 #include FT_FREETYPE_H
 #include <fontconfig/fontconfig.h>
 
@@ -7,7 +7,7 @@
 #include <string.h>
 #include "stdint.h"
 #include "stdbool.h"
-#include "../../raylib/include/raylib.h"
+#include <raylib.h>
 
 #define ATLAS_SIZE 4096
 #define GLYPH_PAD  2
