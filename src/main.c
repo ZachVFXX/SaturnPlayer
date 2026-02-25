@@ -142,12 +142,19 @@ void HandleSearchResultInteraction(Clay_ElementId elementId, Clay_PointerData po
 // Player
 Music music = {0};
 
+typedef struct {
+    Clay_Vector2 clickOrigin;
+    Clay_Vector2 positionOrigin;
+    bool mouseDown;
+} ScrollbarData;
+
 Vector covers_textures = {0};
 mem_arena* song_arena = {0};
 mem_arena* ui_arena = {0};
 mem_arena* string_arena = {0};
 mem_arena* scratch_arena = {0};
-
+ScrollbarData QueueScrollbarData = {0};
+ScrollbarData SearchScrollbarData = {0};
 SliderState music_slider = {0};
 bool debugEnabled = false;
 Tabs currentTab = TABS_QUEUE;
@@ -192,11 +199,12 @@ void print_help(char* program_name) {
 const char* preferred[] = { "Noto Sans", "Noto Sans CJK SC" };
 
 void RebuildFonts(void) {
-    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core) + ((currentSearchResults != NULL) ? currentSearchResults->count : 0));
+    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core));
     // TODO: Make an atlas and add the char one time and dont rebuild it from scratch. Add function to verify if a string is renderable
     // Collect all strings
     size_t query = (TextLength(searchQuery) != 0) ? TextLength(searchQuery) : 0;
     size_t search_count = (currentSearchResults != NULL) ? currentSearchResults->count : 0;
+    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu searches...", search_count);
     size_t song_count = core_get_queue_count(core);
     const char** all_strings = malloc(sizeof(char*) * (song_count + search_count + query) * 3 + 1);
     int str_count = 0;
@@ -624,6 +632,57 @@ int main(int argc, char** argv) {
         float mouseWheelY = mouseWheelDelta.y * 3;
         Clay_Vector2 mousePosition = RAYLIB_VECTOR2_TO_CLAY_VECTOR2(GetMousePosition());
         Clay_SetPointerState(mousePosition, IsMouseButtonDown(0));
+
+        if (!IsMouseButtonDown(0)) {
+            if (currentTab == TABS_QUEUE) {
+                QueueScrollbarData.mouseDown = false;
+            } else if (currentTab == TABS_SEARCH) {
+                SearchScrollbarData.mouseDown = false;
+            }
+        }
+
+        if (IsMouseButtonDown(0) && !QueueScrollbarData.mouseDown && Clay_PointerOver(Clay_GetElementId(CLAY_STRING("QueueScrollBar")))) {
+            Clay_ScrollContainerData scrollContainerDataQueue = Clay_GetScrollContainerData(Clay_GetElementId(CLAY_STRING("QUEUE_CONTAINER")));
+            QueueScrollbarData.clickOrigin = mousePosition;
+            QueueScrollbarData.positionOrigin = *scrollContainerDataQueue.scrollPosition;
+            QueueScrollbarData.mouseDown = true;
+        } else if (QueueScrollbarData.mouseDown) {
+            Clay_ScrollContainerData scrollContainerDataQueue = Clay_GetScrollContainerData(Clay_GetElementId(CLAY_STRING("QUEUE_CONTAINER")));
+            if (scrollContainerDataQueue.contentDimensions.height > 0) {
+                Clay_Vector2 ratio = (Clay_Vector2) {
+                    scrollContainerDataQueue.contentDimensions.width / scrollContainerDataQueue.scrollContainerDimensions.width,
+                    scrollContainerDataQueue.contentDimensions.height / scrollContainerDataQueue.scrollContainerDimensions.height,
+                };
+                if (scrollContainerDataQueue.config.vertical) {
+                    scrollContainerDataQueue.scrollPosition->y = QueueScrollbarData.positionOrigin.y + (QueueScrollbarData.clickOrigin.y - mousePosition.y) * ratio.y;
+                }
+                if (scrollContainerDataQueue.config.horizontal) {
+                    scrollContainerDataQueue.scrollPosition->x = QueueScrollbarData.positionOrigin.x + (QueueScrollbarData.clickOrigin.x - mousePosition.x) * ratio.x;
+                }
+            }
+        }
+
+        if (IsMouseButtonDown(0) && !SearchScrollbarData.mouseDown && Clay_PointerOver(Clay_GetElementId(CLAY_STRING("SearchScrollBar")))) {
+            Clay_ScrollContainerData scrollContainerDataSearch = Clay_GetScrollContainerData(Clay_GetElementId(CLAY_STRING("SEARCH_CONTAINER")));
+            SearchScrollbarData.clickOrigin = mousePosition;
+            SearchScrollbarData.positionOrigin = *scrollContainerDataSearch.scrollPosition;
+            SearchScrollbarData.mouseDown = true;
+        } else if (SearchScrollbarData.mouseDown) {
+            Clay_ScrollContainerData scrollContainerDataSearch = Clay_GetScrollContainerData(Clay_GetElementId(CLAY_STRING("SEARCH_CONTAINER")));
+            if (scrollContainerDataSearch.contentDimensions.height > 0) {
+                Clay_Vector2 ratio = (Clay_Vector2) {
+                    scrollContainerDataSearch.contentDimensions.width / scrollContainerDataSearch.scrollContainerDimensions.width,
+                    scrollContainerDataSearch.contentDimensions.height / scrollContainerDataSearch.scrollContainerDimensions.height,
+                };
+                if (scrollContainerDataSearch.config.vertical) {
+                    scrollContainerDataSearch.scrollPosition->y = SearchScrollbarData.positionOrigin.y + (SearchScrollbarData.clickOrigin.y - mousePosition.y) * ratio.y;
+                }
+                if (scrollContainerDataSearch.config.horizontal) {
+                    scrollContainerDataSearch.scrollPosition->x = SearchScrollbarData.positionOrigin.x + (SearchScrollbarData.clickOrigin.x - mousePosition.x) * ratio.x;
+                }
+            }
+        }
+
         Clay_SetLayoutDimensions((Clay_Dimensions) { (float)GetScreenWidth(), (float)GetScreenHeight() });
 
         // UPDATE THE SCROLL ACCORDINGLY
@@ -727,6 +786,23 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
+                Clay_ScrollContainerData scrollData = Clay_GetScrollContainerData(Clay_GetElementId(CLAY_STRING("QUEUE_CONTAINER")));
+                if (scrollData.found) {
+                    CLAY(CLAY_ID("QueueScrollBar"), {
+                        .floating = {
+                            .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
+                            .offset = { .y = -(scrollData.scrollPosition->y / scrollData.contentDimensions.height) * scrollData.scrollContainerDimensions.height },
+                            .zIndex = 1,
+                            .parentId = Clay_GetElementId(CLAY_STRING("QUEUE_CONTAINER")).id,
+                            .attachPoints = { .element = CLAY_ATTACH_POINT_RIGHT_TOP, .parent = CLAY_ATTACH_POINT_RIGHT_TOP }
+                        }
+                    }) {
+                        CLAY(CLAY_ID("QueueScrollBarButton"), {
+                            .layout = { .sizing = {CLAY_SIZING_FIXED(12), CLAY_SIZING_FIXED((scrollData.scrollContainerDimensions.height / scrollData.contentDimensions.height) * scrollData.scrollContainerDimensions.height) }},
+                            .backgroundColor = Clay_PointerOver(Clay_GetElementId(CLAY_STRING("QueueScrollBar"))) ? COLOR_ACCENT : COLOR_SECONDARY ,
+                        }) {}
+                    }
+                }
             } else if (currentTab == TABS_SEARCH) {
                 CLAY(CLAY_ID("SEARCH_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND }) {
                     if (currentSearchResults && currentSearchResults->count > 0) {
@@ -763,6 +839,23 @@ int main(int argc, char** argv) {
                         }) {
                         CLAY_TEXT(CLAY_STRING("No results found"), TEXT_CONFIG_24_BOLD);
                         }
+                    }
+                }
+                Clay_ScrollContainerData scrollData = Clay_GetScrollContainerData(Clay_GetElementId(CLAY_STRING("SEARCH_CONTAINER")));
+                if (scrollData.found) {
+                    CLAY(CLAY_ID("SearchScrollBar"), {
+                        .floating = {
+                            .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
+                            .offset = { .y = -(scrollData.scrollPosition->y / scrollData.contentDimensions.height) * scrollData.scrollContainerDimensions.height },
+                            .zIndex = 1,
+                            .parentId = Clay_GetElementId(CLAY_STRING("SEARCH_CONTAINER")).id,
+                            .attachPoints = { .element = CLAY_ATTACH_POINT_RIGHT_TOP, .parent = CLAY_ATTACH_POINT_RIGHT_TOP }
+                        }
+                    }) {
+                        CLAY(CLAY_ID("SearchScrollBarButton"), {
+                            .layout = { .sizing = {CLAY_SIZING_FIXED(12), CLAY_SIZING_FIXED((scrollData.scrollContainerDimensions.height / scrollData.contentDimensions.height) * scrollData.scrollContainerDimensions.height) }},
+                            .backgroundColor = Clay_PointerOver(Clay_GetElementId(CLAY_STRING("SearchScrollBar"))) ? COLOR_ACCENT : COLOR_SECONDARY ,
+                        }) {}
                     }
                 }
             }

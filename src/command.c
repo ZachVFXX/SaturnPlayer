@@ -82,7 +82,6 @@ static void* search_thread(void* arg) {
             sb_free(&query);
     } else if (sv_starts_with(sv, sv_from_cstr("https://"))) {
         snprintf(search_arg, sizeof(search_arg), "%s", s->query);
-
     } else {
         snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s", s->max_results, s->query);
     }
