@@ -1335,7 +1335,7 @@ void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointer
 }
 
 void HandlePreviousInteraction(Clay_ElementId elementId, Clay_PointerData pointerInfo, void *userData) {
-    (void) elementId;
+    (void)elementId;
     (void)userData;
 
     current_cursor = MOUSE_CURSOR_POINTING_HAND;

@@ -162,11 +162,11 @@ static void registry_find_family(FontList* fl,
         if (strstr(lower_name, lower_family) == NULL) continue;
 
         // val_data may be a bare filename or a full path
-        char full[MAX_PATH_LEN];
+        char full[MAX_PATH_LEN * 2];
         if (strchr(val_data, '\\') || strchr(val_data, '/')) {
             strncpy(full, val_data, MAX_PATH_LEN - 1);
         } else {
-            snprintf(full, MAX_PATH_LEN, "%s\\%s", fonts_dir, val_data);
+            snprintf(full, sizeof(full), "%s\\%s", fonts_dir, val_data);
         }
         fontlist_push(fl, full);
     }
