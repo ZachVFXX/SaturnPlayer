@@ -6,8 +6,6 @@
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
 
-#include "win/titlebar.h"
-
 #include "core/core.h"
 #include "core/queue.h"
 #include "../raylib/include/raylib.h"
@@ -26,6 +24,8 @@
 #include "multi_font/multi_font_unix.c"
 #else
 #include "multi_font/multi_font_win.c"
+#include "win/titlebar.h"
+#include "win/taskbar_progress.c"
 #endif
 
 #define CLAY_IMPLEMENTATION
@@ -399,6 +399,8 @@ int main(int argc, char** argv) {
     UnloadImage(icon);
 
     #ifdef _WIN32
+        HWND hwnd = (HWND)GetWindowHandle();
+        taskbar_progress_init(hwnd);
         set_window_title_bar_color(GetWindowHandle(), COLOR_BACKGROUND_DARK.r, COLOR_BACKGROUND_DARK.g, COLOR_BACKGROUND_DARK.b);
     #endif
 
@@ -865,6 +867,13 @@ int main(int argc, char** argv) {
                 const char* song_title = arena_get_string(string_arena, song->title);
                 const char* song_artists = arena_get_string(string_arena, song->artists);
 
+                #ifdef _WIN32
+                taskbar_progress_set_value(core->audio->vtable->position(core->audio) / core->audio->vtable->get_length(core->audio));
+                if (!core->audio->vtable->is_playing(core->audio)) {
+                    taskbar_progress_set_state(TASKBAR_PROGRESS_PAUSED);
+                }
+                #endif
+
                 CLAY(CLAY_ID("PLAYER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(140)}, .padding = CLAY_PADDING_ALL(8), .childGap = 4 }, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     CLAY_AUTO_ID({ .clip = { true, true}, .layout = { .childAlignment = { .x = CLAY_ALIGN_X_CENTER }, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}}) {
                         Clay_String string_title = { .chars = song_title, .length = strlen(song_title), .isStaticallyAllocated = false };
@@ -1008,6 +1017,7 @@ int main(int argc, char** argv) {
     arena_destroy(scratch_arena);
     arena_destroy(string_arena);
     CloseAudioDevice();
+    taskbar_progress_destroy();
     Clay_Raylib_Close();
     free(clay_memory_ptr);
     return 0;

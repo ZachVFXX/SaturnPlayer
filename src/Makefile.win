@@ -21,7 +21,7 @@ LIBS = -L$(RAYLIB_PATH)/lib -lraylib \
        $(FFMPEG_LIB_DIR)/libavcodec.a \
        $(FFMPEG_LIB_DIR)/libavutil.a \
        -L$(FREETYPE_PATH)/lib -lfreetype \
-       -lopengl32 -lgdi32 -lwinmm -lws2_32 -lpthread -lm -lbcrypt -ldwmapi
+       -lopengl32 -lgdi32 -lwinmm -lws2_32 -lpthread -lm -lbcrypt -ldwmapi -lole32
 
 SRCS = main.c
 OBJS = main.o win/titlebar.o
