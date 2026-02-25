@@ -1,5 +1,5 @@
 #include "../../freetype_build/include/ft2build.h"
-#include FT_FREETYPE_H
+#include "../../freetype/include/freetype/freetype.h"
 
 #include <windows.h>
 #include <stdlib.h>
