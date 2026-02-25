@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include "utils/arena.h"
-
+#include "../raylib/include/raylib.h"
 #include "utils/string.c"
 
 
@@ -80,6 +80,9 @@ static void* search_thread(void* arg) {
             snprintf(search_arg, sizeof(search_arg), "%.*s%d:%.*s", (int)website.count, website.items, s->max_results, (int)query.count, query.items);
             sb_free(&website);
             sb_free(&query);
+    } else if (sv_starts_with(sv, sv_from_cstr("https://"))) {
+        snprintf(search_arg, sizeof(search_arg), "%s", s->query);
+
     } else {
         snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s", s->max_results, s->query);
     }

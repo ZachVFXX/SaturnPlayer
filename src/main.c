@@ -741,7 +741,7 @@ int main(int argc, char** argv) {
                                 .padding = CLAY_PADDING_ALL(32)
                             }
                         }) {
-                        CLAY_TEXT(CLAY_STRING("Search and Press Enter"), TEXT_CONFIG_24_BOLD);
+                        CLAY_TEXT(CLAY_STRING("Search or paste url and press Enter"), TEXT_CONFIG_24_BOLD);
                         }
                     } else if (!search_done(searcher)) {
                         CLAY(CLAY_ID("NO_RESULTS"), {
