@@ -22,7 +22,7 @@ static void str_to_lower(char* s) {
 #define GLYPH_PAD     2
 #define FACE_CACHE_MAX 64
 #define MAX_FONT_FILES 2048
-#define MAX_PATH_LEN   1024
+#define MAX_PATH_LEN   2048
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Atlas

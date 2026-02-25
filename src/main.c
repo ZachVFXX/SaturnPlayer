@@ -6,6 +6,8 @@
 #define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
 
+#include "win/titlebar.h"
+
 #include "core/core.h"
 #include "core/queue.h"
 #include "../raylib/include/raylib.h"
@@ -388,6 +390,10 @@ int main(int argc, char** argv) {
     SetWindowIcon(icon);
     UnloadImage(icon);
 
+    #ifdef _WIN32
+        set_window_title_bar_color(GetWindowHandle(), COLOR_BACKGROUND_DARK.r, COLOR_BACKGROUND_DARK.g, COLOR_BACKGROUND_DARK.b);
+    #endif
+
     // SetExitKey(KEY_NULL);
 
     int bootstrap_cps[95];
@@ -651,11 +657,11 @@ int main(int argc, char** argv) {
             CLAY(CLAY_ID("TABS_CONTAINER"), { .layout = { .layoutDirection = CLAY_LEFT_TO_RIGHT, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(80) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
                     CLAY(CLAY_ID("TABS_QUEUE"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_QUEUE) ? COLOR_SECONDARY : Clay_Hovered() ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_QUEUE);
-                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
+                    CLAY_TEXT(CLAY_STRING("QUEUE"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = (currentTab == TABS_QUEUE) ? COLOR_BACKGROUND_LIGHT : COLOR_TEXT_SECONDARY }));
                 }
                 CLAY(CLAY_ID("TABS_SEARCH"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}}, .backgroundColor = (currentTab == TABS_SEARCH) ? COLOR_SECONDARY : Clay_Hovered() ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND}) {
                     Clay_OnHover(HandleSelecTabInteraction, (void *)(uintptr_t)TABS_SEARCH);
-                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
+                    CLAY_TEXT(CLAY_STRING("SEARCH"), CLAY_TEXT_CONFIG({ .fontId = 1, .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = (currentTab == TABS_SEARCH) ? COLOR_BACKGROUND_LIGHT : COLOR_TEXT_SECONDARY }));
                 }
                 CLAY(CLAY_ID("SEARCH_BAR"), { .layout = { .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER}, .sizing = { .height = CLAY_SIZING_GROW(0), .width = CLAY_SIZING_PERCENT(0.33)}, .padding = CLAY_PADDING_ALL(8) }, .clip = { .horizontal = true, .vertical = true }, .backgroundColor = searchBarActive ? COLOR_BACKGROUND_DARK : COLOR_BACKGROUND }) {
                     Clay_OnHover(HandleSearchInteraction, NULL);

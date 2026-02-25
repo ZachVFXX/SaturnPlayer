@@ -21,12 +21,10 @@ LIBS = -L$(RAYLIB_PATH)/lib -lraylib \
        $(FFMPEG_LIB_DIR)/libavcodec.a \
        $(FFMPEG_LIB_DIR)/libavutil.a \
        -L$(FREETYPE_PATH)/lib -lfreetype \
-       -lopengl32 -lgdi32 -lwinmm -lws2_32 -lpthread -lm -lbcrypt
+       -lopengl32 -lgdi32 -lwinmm -lws2_32 -lpthread -lm -lbcrypt -ldwmapi
 
-# --- Sources ---
-# Unity Build : uniquement main.c
 SRCS = main.c
-OBJS = main.o
+OBJS = main.o win/titlebar.o
 
 debug: main.exe
 
