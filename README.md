@@ -63,6 +63,13 @@ cd SaturnPlayer/src/
 make -f Makefile.win release && ./main_release.exe ~/musics_folders/
 ```
 
+---
+
+## Images
+
+Windows:
+![Windows main page](imgs/windows/1.png)
+![Windows search page](imgs/windows/2.png)
 
 ---
 
