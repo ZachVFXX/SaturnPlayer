@@ -1,6 +1,5 @@
 #pragma once
 #include <stdbool.h>
-#include <pthread.h>
 #include "song.h"
 #include "queue.h"
 #include "audio_backend.h"
@@ -25,8 +24,8 @@ typedef enum {
     CMD_STOP,
     CMD_PLAY_NEXT,
     CMD_PLAY_PREV,
-    CMD_SELECT_NEXT,        // Select next song (UI navigation)
-    CMD_SELECT_PREV,        // Select previous song (UI navigation)
+    CMD_SELECT_NEXT,        // Select next song
+    CMD_SELECT_PREV,        // Select previous song
     CMD_SELECT_INDEX,       // Select song by index
     CMD_SELECT_SONG,        // Select song by pointer
     CMD_SEEK_ABS,

@@ -11,12 +11,12 @@ CRELEASEFLAGS = -O3 -mwindows
 
 FFMPEG_LIB_DIR = $(FFMPEG_PATH)/lib
 
-INCLUDES = -I$(RAYLIB_PATH)/include \
+INCLUDES = -I$(RAYLIB_PATH)/src \
            -I$(FFMPEG_PATH)/include \
            -I$(FREETYPE_PATH)/include \
            -I./src
 
-LIBS = -L$(RAYLIB_PATH)/lib -lraylib \
+LIBS = -L$(RAYLIB_PATH)/src -lraylib \
        $(FFMPEG_LIB_DIR)/libavformat.a \
        $(FFMPEG_LIB_DIR)/libavcodec.a \
        $(FFMPEG_LIB_DIR)/libavutil.a \

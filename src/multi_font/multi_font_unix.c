@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include "../../raylib/include/raylib.h"
+#include "../../raylib/src/raylib.h"
 
 #define ATLAS_SIZE     4096
 #define GLYPH_PAD      2

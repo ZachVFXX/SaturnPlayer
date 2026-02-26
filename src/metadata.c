@@ -1,5 +1,5 @@
 #include <libavformat/avformat.h>
-#include "../raylib/include/raylib.h"
+#include "../raylib/src/raylib.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>

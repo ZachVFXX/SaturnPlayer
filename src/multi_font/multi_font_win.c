@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "../../raylib/include/raylib.h"
+#include "../../raylib/src/raylib.h"
 
 #include <ctype.h>
 

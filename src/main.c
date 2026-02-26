@@ -8,8 +8,8 @@
 
 #include "core/core.h"
 #include "core/queue.h"
-#include "../raylib/include/raylib.h"
-#include "../raylib/include/raymath.h"
+#include "../raylib/src/raylib.h"
+#include "../raylib/src/raymath.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -198,6 +198,13 @@ void print_help(char* program_name) {
 
 const char* preferred[] = { "Noto Sans", "Noto Sans CJK SC" };
 
+
+static int IsSupportedAudio(const char *ext)
+{
+    return strcmp(ext, ".mp3")  == 0 || strcmp(ext, ".wav")  == 0 || strcmp(ext, ".ogg")  == 0 || strcmp(ext, ".qoas") == 0 ||
+           strcmp(ext, ".xm")   == 0 || strcmp(ext, ".mod")  == 0;
+}
+
 void RebuildFonts(void) {
     TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core));
     // TODO: Make an atlas and add the char one time and dont rebuild it from scratch. Add function to verify if a string is renderable
@@ -329,6 +336,23 @@ void start_loading_songs_async(FilePathList files, bool is_file_dropped) {
     loading_songs = true;
     pthread_mutex_unlock(&song_loading_mutex);
 
+    int writeIndex = 0;
+
+    for (size_t i = 0; i < files.count; i++)
+    {
+        const char *ext = GetFileExtension(files.paths[i]);
+
+        if (IsSupportedAudio(ext)){
+            // garder le fichier → on le déplace si nécessaire
+            files.paths[writeIndex++] = files.paths[i];
+        } else {
+            // supprimer immédiatement le chemin non valide
+            free(files.paths[i]);
+        }
+    }
+
+    files.count = writeIndex;
+
     LoadSongsThreadData* data = malloc(sizeof(LoadSongsThreadData));
     data->files = files;
     data->is_file_dropped = is_file_dropped;
@@ -422,7 +446,7 @@ int main(int argc, char** argv) {
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
-    FilePathList music_files = LoadDirectoryFilesEx(working_path, ".mp3", true);
+    FilePathList music_files = LoadDirectoryFiles(working_path);
     start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())
@@ -576,7 +600,7 @@ int main(int argc, char** argv) {
 
             for (int i = 0; i < (int)droppedFiles.count; i++) {
                 if (!IsPathFile(droppedFiles.paths[i])) {
-                    FilePathList dirFiles = LoadDirectoryFilesEx(droppedFiles.paths[i], ".mp3", true);
+                    FilePathList dirFiles = LoadDirectoryFiles(droppedFiles.paths[i]);
                     for (int j = 0; j < (int)dirFiles.count; j++) {
                         char *path = strdup(dirFiles.paths[j]);
                         vectorAppend(&pathVector, &path);
@@ -590,7 +614,6 @@ int main(int argc, char** argv) {
 
             FilePathList mergedFiles = { 0 };
             mergedFiles.count    = pathVector.count;
-            mergedFiles.capacity = pathVector.count; // Raylib frees up to capacity
             mergedFiles.paths    = (char **)pathVector.data;
 
             start_loading_songs_async(mergedFiles, true); // thread calls UnloadDirectoryFiles(mergedFiles)

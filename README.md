@@ -10,7 +10,7 @@ Supports downloading songs directly from **YouTube Music**, MP3/WAV/OGG/FLAC pla
 
 ## Features
 
-* MP3/WAV/OGG/FLAC playback
+* MP3/WAV/OGG/FLAC? playback
 * Download songs from YouTube Music
 * Metadata extraction (artist, album, cover)
 * Embedded album art rendering

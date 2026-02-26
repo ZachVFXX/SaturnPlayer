@@ -1,5 +1,5 @@
 #pragma once
-#include <raylib.h>
+#include "win/taskbar_progress.h"
 #include <stddef.h>
 #define SUBPROCESS_IMPLEMENTATION
 #include "../external/subprocess.h"
@@ -10,13 +10,14 @@
 #include <stdio.h>
 
 #include "utils/arena.h"
-#include "../raylib/include/raylib.h"
+#include "../raylib/src/raylib.h"
 #include "utils/string.c"
-
 
 #define MAX_SEARCH_RESULTS 16
 
 #if defined(_WIN32)
+#include "win/taskbar_progress.h"
+# define strtok_r strtok_s
 const char* ytdlp = "yt-dlp.exe";
 #else
 const char* ytdlp = "yt-dlp";
@@ -112,6 +113,10 @@ static void* search_thread(void* arg) {
     size_t size = 0;
     unsigned int n;
 
+    #ifdef _WIN32
+    taskbar_progress_set_indeterminate();
+    #endif
+
     while ((n = subprocess_read_stdout(&p, buffer, sizeof(buffer)-1)) > 0) {
         buffer[n] = 0;
         char* next = arena_push(s->arena, size + n + 1, false);
@@ -128,6 +133,9 @@ static void* search_thread(void* arg) {
 
     if (ec != 0 || !output) {
         s->done = true;
+        #ifdef _WIN32
+        taskbar_progress_set_state(TASKBAR_PROGRESS_ERROR);
+        #endif
         return NULL;
     }
 
@@ -161,6 +169,10 @@ static void* search_thread(void* arg) {
     s->results = r;
     s->success = true;
     s->done = true;
+
+    #ifdef _WIN32
+    taskbar_progress_set_state(TASKBAR_PROGRESS_NORMAL);
+    #endif
     return NULL;
 }
 
@@ -170,7 +182,7 @@ static void* download_thread(void* arg) {
     const char* args[] = {
         ytdlp,
         "-x",
-        "--audio-format", "mp3",
+        "--audio-format", "flac",
         "--audio-quality", "0",
         "--embed-metadata",
         "--embed-thumbnail",
@@ -192,6 +204,10 @@ static void* download_thread(void* arg) {
     char buf[1024];
     unsigned int n;
 
+    #ifdef _WIN32
+    taskbar_progress_set_state(TASKBAR_PROGRESS_INDETERMINATE);
+    #endif
+
     while ((n = subprocess_read_stdout(&p, buf, sizeof(buf)-1)) > 0) {
         buf[n] = 0;
 
@@ -206,7 +222,6 @@ static void* download_thread(void* arg) {
 
         if (*buf) d->final_path = arena_strdup(d->arena, buf);
     }
-    TraceLog(LOG_ERROR, "%s", d->final_path);
 
     // Temporarily add this to debug:
     char errbuf[4096] = {0};
@@ -214,6 +229,9 @@ static void* download_thread(void* arg) {
     while ((en = subprocess_read_stderr(&p, errbuf, sizeof(errbuf)-1)) > 0) {
         errbuf[en] = 0;
         TraceLog(LOG_WARNING, "SUBPROCESS STDERR: %s", errbuf);
+        #ifdef _WIN32
+        taskbar_progress_set_state(TASKBAR_PROGRESS_ERROR);
+        #endif
     }
 
     int ec;
@@ -222,6 +240,10 @@ static void* download_thread(void* arg) {
 
     d->success = (ec == 0 && d->final_path);
     d->done = true;
+
+    #ifdef _WIN32
+    taskbar_progress_set_state((d->success) ? TASKBAR_PROGRESS_NORMAL : TASKBAR_PROGRESS_ERROR);
+    #endif
     return NULL;
 }
 
