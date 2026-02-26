@@ -182,7 +182,7 @@ static void* download_thread(void* arg) {
     const char* args[] = {
         ytdlp,
         "-x",
-        "--audio-format", "flac",
+        "--audio-format", "mp3",
         "--audio-quality", "0",
         "--embed-metadata",
         "--embed-thumbnail",
