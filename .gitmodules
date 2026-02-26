@@ -1,0 +1,9 @@
+[submodule "raylib"]
+	path = raylib
+	url = https://github.com/raysan5/raylib.git
+[submodule "FFmpeg"]
+	path = FFmpeg
+	url = https://github.com/FFmpeg/FFmpeg.git
+[submodule "freetype"]
+	path = freetype
+	url = https://github.com/freetype/freetype.git

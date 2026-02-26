@@ -7,10 +7,6 @@
 *.obj
 *.elf
 
-ffmpeg*/
-freetype*/
-raylib*/
-
 src/.clangd
 *.wav
 *.mp3
