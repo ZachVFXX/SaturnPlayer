@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include "utils/arena.h"
-#include "../raylib/src/raylib.h"
+#include "../external/raylib/src/raylib.h"
 #include "utils/string.c"
 
 #define MAX_SEARCH_RESULTS 16

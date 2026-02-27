@@ -1,5 +1,5 @@
-#include <libavformat/avformat.h>
-#include "../raylib/src/raylib.h"
+#include "../external/ffmpeg/libavformat/avformat.h"
+#include "../external/raylib/src/raylib.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>

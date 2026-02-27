@@ -8,8 +8,8 @@
 
 #include "core/core.h"
 #include "core/queue.h"
-#include "../raylib/src/raylib.h"
-#include "../raylib/src/raymath.h"
+#include "../external/raylib/src/raylib.h"
+#include "../external/raylib/src/raymath.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
