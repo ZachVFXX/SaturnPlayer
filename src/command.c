@@ -1,5 +1,4 @@
 #pragma once
-#include "win/taskbar_progress.h"
 #include <stddef.h>
 #define SUBPROCESS_IMPLEMENTATION
 #include "../external/subprocess.h"

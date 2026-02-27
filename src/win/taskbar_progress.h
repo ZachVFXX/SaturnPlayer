@@ -1,25 +1,4 @@
 #pragma once
-
-/*  win/taskbar_progress.h
- *  ──────────────────────────────────────────────────────────────────────────
- *  Reusable Windows taskbar progress-bar API wrapping ITaskbarList3.
- *
- *  Usage (raylib):
- *
- *      // After InitWindow():
- *      HWND hwnd = (HWND)GetWindowHandle();
- *      taskbar_progress_init(hwnd);
- *
- *      // Each frame (e.g. while loading songs):
- *      taskbar_progress_set_value(loaded / (float)total);
- *
- *      // When done / window closing:
- *      taskbar_progress_destroy();
- *
- *  States map 1-to-1 to TBPF_* flags so you can use them interchangeably.
- *  ──────────────────────────────────────────────────────────────────────────
- */
-
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
