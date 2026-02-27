@@ -68,11 +68,18 @@ static void* search_thread(void* arg) {
             StringView sv2 = {0};
             size_t index = sv_find(sv, sv_from_cstr(":"));
             sv2.data = sv.data + 1;
-            sv2.count = index - 1;
+            if (index > 1)
+                sv2.count = index - 1;
+            else
+                sv2.count = 0;
             StringBuilder website = sb_from_sv(sv2);
 
-            sv2.data = sv.data + index + 1;
-            sv2.count = sv.count - index;
+            if (index + 1 < sv.count) {
+                sv2.data  = sv.data + index + 1;
+                sv2.count = sv.count - (index + 1);
+            } else {
+                sv2.count = 0;
+            }
 
             StringView sv_query = sv_trim(sv2);
 
