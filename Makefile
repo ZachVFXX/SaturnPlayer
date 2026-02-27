@@ -18,6 +18,7 @@ ifeq ($(PLATFORM), Linux)
 	CRELEASEFLAGS  = -O3
 	TARGET_OS      = linux
 	BIN_SUFFIX     =
+	GLFW_BACKEND   = -D_GLFW_X11
 else ifeq ($(PLATFORM), Darwin)
 	CC             = clang
 	PLATFORM_LIBS  = -framework OpenGL -framework Cocoa     \
@@ -28,6 +29,7 @@ else ifeq ($(PLATFORM), Darwin)
 	CRELEASEFLAGS  = -O3
 	TARGET_OS      = darwin
 	BIN_SUFFIX     =
+	GLFW_BACKEND   = -D_GLFW_COCOA
 else
 	# Windows with mingw-w64
 	CC             = x86_64-w64-mingw32-gcc
@@ -37,9 +39,11 @@ else
 	CRELEASEFLAGS  = -O3 -mwindows
 	TARGET_OS      = mingw32
 	BIN_SUFFIX     = .exe
+	GLFW_BACKEND   = -D_GLFW_WIN32
 endif
 
-OS_TRIPLET = $(shell gcc -dumpmachine)
+# Use the actual compiler to get the correct target triplet
+OS_TRIPLET = $(shell $(CC) -dumpmachine)
 
 $(info Building using $(CC))
 
@@ -67,7 +71,7 @@ FREETYPE_URL     = https://sourceforge.net/projects/freetype/files/freetype2/$(F
 # ─────────────────────────────────────────────────────────────────
 INCLUDES = -I$(RAYLIB_PATH)           \
            -I$(FFMPEG_PATH)           \
-           -I$(FFMPEG_BUILD)           \
+           -I$(FFMPEG_BUILD)          \
            -I$(FREETYPE_PATH)/include \
            -I./src
 
@@ -93,19 +97,22 @@ debug:   saturn_debug$(BIN_SUFFIX)
 release: saturn_player$(BIN_SUFFIX)
 
 # ─────────────────────────────────────────────────────────────────
+# Compilation
+# ─────────────────────────────────────────────────────────────────
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS) $(INCLUDES) $(EXTRA_FLAGS)
+
+# ─────────────────────────────────────────────────────────────────
 # Linking
 # ─────────────────────────────────────────────────────────────────
+saturn_debug$(BIN_SUFFIX): EXTRA_FLAGS = $(CDEBUGFLAGS)
+saturn_player$(BIN_SUFFIX): EXTRA_FLAGS = $(CRELEASEFLAGS)
+
 saturn_debug$(BIN_SUFFIX): $(OBJS)
 	$(CC) -o $@ $^ $(LIBS) $(CDEBUGFLAGS)
 
 saturn_player$(BIN_SUFFIX): $(OBJS)
 	$(CC) -o $@ $^ $(LIBS) $(CRELEASEFLAGS)
-
-# ─────────────────────────────────────────────────────────────────
-# Compilation
-# ─────────────────────────────────────────────────────────────────
-%.o: %.c
-	$(CC) -c $< -o $@ $(CFLAGS) $(INCLUDES) $(CDEBUGFLAGS)
 
 # ─────────────────────────────────────────────────────────────────
 # FFmpeg
@@ -152,7 +159,7 @@ build_raylib:
 		OS=$(PLATFORM)                     \
 		CFLAGS="-DSUPPORT_MODULE_RMODELS=0 \
 		-DPLATFORM_DESKTOP_GLFW            \
-		-D_GLFW_X11                        \
+		$(GLFW_BACKEND)                    \
 		-DSUPPORT_CAMERA_SYSTEM=0          \
 		-DSUPPORT_FILEFORMAT_JPG=1         \
 		-DSUPPORT_IMAGE_EXPORT=0           \
