@@ -440,14 +440,13 @@ int main(int argc, char** argv) {
 
     if (argc > 1 || IsPathFile(argv[1])) {
         working_path = argv[1];
+        FilePathList music_files = LoadDirectoryFiles(working_path);
+        start_loading_songs_async(music_files, false);
     } else {
         working_path = ".";
     }
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
-
-    FilePathList music_files = LoadDirectoryFiles(working_path);
-    start_loading_songs_async(music_files, false);
 
     while (!WindowShouldClose())
     {

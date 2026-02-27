@@ -90,8 +90,6 @@ FREETYPE_VERSION = 2.13.2
 FREETYPE_ARCHIVE = freetype-$(FREETYPE_VERSION).tar.xz
 FREETYPE_URL = https://download.savannah.gnu.org/releases/freetype/$(FREETYPE_ARCHIVE)
 
-EXT_PATH = external
-
 $(FREETYPE_ARCHIVE):
 	curl -fL --retry 3 --output $@ $(FREETYPE_URL)
 
@@ -138,14 +136,17 @@ OBJS = src/main.o src/win/titlebar.o
 
 CFLAGS = -std=c99 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
 
-debug: build_ffmpeg build_freetype build_raylib main.exe
+debug_build: build_ffmpeg build_freetype build_raylib saturn_debug.exe
 
-release: build_ffmpeg build_freetype build_raylib main_release.exe
+release_build: build_ffmpeg build_freetype build_raylib saturn_player.exe
 
-main.exe: $(OBJS)
+debug: saturn_debug.exe
+release: saturn_player.exe
+
+saturn_debug.exe: $(OBJS)
 	$(CC) -o $@ $^ $(LIBS) $(CDEBUGFLAGS)
 
-main_release.exe: $(OBJS)
+saturn_player.exe: $(OBJS)
 	$(CC) -o $@ $^ $(LIBS) $(CRELEASEFLAGS)
 
 %.o: %.c

@@ -42,8 +42,9 @@ ON WINDOWS: https://github.com/skeeto/w64devkit download the zip and extract it,
 #for linux in cmd and windows in w64devkit.exe
 git clone https://github.com/ZachVFXX/SaturnPlayer.git
 cd SaturnPlayer/
-make release # Wait and run it !
-./main_release ~/path_to_music_folder/
+make release_build # Wait, it build all the dependencies for you :)
+# or `make release` if you already made the command release_build and dont need to rebuild all dependencies
+./saturn_player ~/path_to_music_folder/
 ```
 
 ---
