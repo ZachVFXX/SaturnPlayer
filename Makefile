@@ -60,7 +60,7 @@ FREETYPE_PATH    = $(EXT_PATH)/freetype
 FREETYPE_BUILD   = $(FREETYPE_PATH)/build
 FREETYPE_VERSION = 2.14.1
 FREETYPE_ARCHIVE = freetype-$(FREETYPE_VERSION).tar.xz
-FREETYPE_URL     = https://download.savannah.gnu.org/releases/freetype/$(FREETYPE_ARCHIVE)
+FREETYPE_URL     = https://sourceforge.net/projects/freetype/files/freetype2/$(FREETYPE_VERSION)/$(FREETYPE_ARCHIVE)/download
 
 # ─────────────────────────────────────────────────────────────────
 # Compiler flags
