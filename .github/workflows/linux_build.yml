@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout (with submodules)
       - uses: actions/checkout@v4
         with:
           submodules: recursive
