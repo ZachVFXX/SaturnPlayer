@@ -77,8 +77,11 @@ static FT_Face face_cache_get_or_load(FaceCache* c, const char* path) {
     if (FT_New_Face(c->ft, path, 0, &face) != 0) return NULL;
     FT_Set_Pixel_Sizes(face, 0, (FT_UInt)c->pixel_size);
 
-    strncpy(c->entries[c->count].path, path, MAX_PATH_LEN - 1);
-    c->entries[c->count].path[MAX_PATH_LEN - 1] = '\0';
+    snprintf(c->entries[c->count].path,
+             MAX_PATH_LEN,
+             "%s",
+             path ? path : "");
+
     c->entries[c->count].face = face;
     c->count++;
     TraceLog(LOG_INFO, "MULTIFONT: loaded face [%d] %s", c->count - 1, path);
@@ -108,8 +111,15 @@ static void get_fonts_dir(char* out, int out_len) {
     // SHGetFolderPath would be nicer but this avoids Shell32 linkage
     char windir[MAX_PATH_LEN];
     UINT n = GetWindowsDirectoryA(windir, sizeof(windir));
-    if (n == 0) strncpy(windir, "C:\\Windows", sizeof(windir));
-    snprintf(out, out_len, "%s\\Fonts", windir);
+    if (n == 0) {
+        snprintf(windir, sizeof(windir), "%s", "C:\\Windows");
+    }
+
+    if (windir[0] != '\0') {
+        snprintf(out, out_len, "%s\\Fonts", windir);
+    } else {
+        out[0] = '\0';
+    }
 }
 
 // Push a path into FontList, deduplicating (case-insensitive).
@@ -117,8 +127,10 @@ static void fontlist_push(FontList* fl, const char* path) {
     if (fl->count >= MAX_FONT_FILES) return;
     for (int i = 0; i < fl->count; i++)
         if (_stricmp(fl->paths[i], path) == 0) return;
-    strncpy(fl->paths[fl->count], path, MAX_PATH_LEN - 1);
-    fl->paths[fl->count][MAX_PATH_LEN - 1] = '\0';
+    snprintf(fl->paths[fl->count],
+             MAX_PATH_LEN,
+             "%s",
+             path ? path : "");
     fl->count++;
 }
 
@@ -155,8 +167,11 @@ static void registry_find_family(FontList* fl,
         // val_name is like "Segoe UI (TrueType)" — check if family is in it
         // Simple case-insensitive substring match
         char lower_name[256], lower_family[256];
-        strncpy(lower_name,   val_name, 255);
-        strncpy(lower_family, family,   255);
+
+        snprintf(lower_name, sizeof(lower_name), "%s",
+                 val_name[0] ? val_name : "");
+        snprintf(lower_family, sizeof(lower_family), "%s", family   ? family   : "");
+
         str_to_lower(lower_name);
         str_to_lower(lower_family);
         if (strstr(lower_name, lower_family) == NULL) continue;
@@ -164,7 +179,7 @@ static void registry_find_family(FontList* fl,
         // val_data may be a bare filename or a full path
         char full[MAX_PATH_LEN * 2];
         if (strchr(val_data, '\\') || strchr(val_data, '/')) {
-            strncpy(full, val_data, MAX_PATH_LEN - 1);
+            snprintf(full, sizeof(full), "%s", val_data);
         } else {
             snprintf(full, sizeof(full), "%s\\%s", fonts_dir, val_data);
         }
@@ -176,7 +191,10 @@ static void registry_find_family(FontList* fl,
 // Scan the Fonts directory and append every .ttf / .otf / .ttc file.
 static void scan_fonts_dir(FontList* fl, const char* fonts_dir) {
     char pattern[MAX_PATH_LEN];
-    snprintf(pattern, MAX_PATH_LEN, "%s\\*.*", fonts_dir);
+    if (fonts_dir)
+        snprintf(pattern, sizeof(pattern), "%s\\*.*", fonts_dir);
+    else
+        pattern[0] = '\0';
 
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pattern, &fd);
@@ -188,14 +206,17 @@ static void scan_fonts_dir(FontList* fl, const char* fonts_dir) {
         const char* dot = strrchr(fd.cFileName, '.');
         if (!dot) continue;
         char ext[8];
-        strncpy(ext, dot + 1, 7);
+        snprintf(ext, sizeof(ext), "%s", dot + 1);
         str_to_lower(ext);
         if (strcmp(ext, "ttf") != 0 &&
             strcmp(ext, "otf") != 0 &&
             strcmp(ext, "ttc") != 0) continue;
 
         char full[MAX_PATH_LEN];
-        snprintf(full, MAX_PATH_LEN, "%s\\%s", fonts_dir, fd.cFileName);
+        if (fonts_dir)
+            snprintf(full, sizeof(full), "%s\\%s", fonts_dir, fd.cFileName);
+        else
+            full[0] = '\0';
         fontlist_push(fl, full);
     } while (FindNextFileA(h, &fd));
 
