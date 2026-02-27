@@ -16,30 +16,18 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install NASM (needed by FFmpeg)
-        shell: powershell
-        run: choco install nasm --no-progress -y
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-nasm
 
-      - name: Download and install w64devkit
-        shell: powershell
-        run: |
-          $release = Invoke-RestMethod "https://api.github.com/repos/skeeto/w64devkit/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -match "x64.*\.exe$" }
-          if (-not $asset) { throw "w64devkit installer not found" }
-
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile w64devkit-installer.exe
-
-          # Silent install into runner temp directory
-          Start-Process -FilePath ".\w64devkit-installer.exe" `
-                        -ArgumentList "/S","/D=$env:RUNNER_TEMP\w64devkit" `
-                        -Wait
-
-          # Add bin directory to PATH
-          "$env:RUNNER_TEMP\w64devkit\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Build release
-        shell: bash
+      - name: Build
+        shell: msys2 {0}
         run: make release_build
 
       - name: Upload artifact
