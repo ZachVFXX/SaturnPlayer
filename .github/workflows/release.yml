@@ -1,0 +1,161 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: # also allows manual trigger from the Actions tab
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Linux  (native gcc)
+  # ─────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            gcc \
+            nasm \
+            yasm \
+            pkg-config \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev
+
+      - name: Build release
+        run: make release_build
+
+      - name: Rename binary
+        run: mv saturn_player.exe saturn_player_linux
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saturn-linux
+          path: saturn_player_linux
+
+  # ─────────────────────────────────────────────
+  # Windows  (native build via w64devkit)
+  # ─────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install nasm (needed by FFmpeg)
+        shell: powershell
+        run: choco install nasm --no-progress -y
+
+      - name: Download and extract w64devkit
+        shell: powershell
+        run: |
+          # Fetch the latest w64devkit release metadata from GitHub
+          $release = Invoke-RestMethod "https://api.github.com/repos/skeeto/w64devkit/releases/latest"
+
+          # Pick the x64 zip asset
+          $asset = $release.assets | Where-Object { $_.name -match "^w64devkit-x64-.*\.zip$" }
+          if (-not $asset) { throw "Could not find w64devkit x64 zip in latest release" }
+
+          Write-Host "Downloading $($asset.name) ..."
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile w64devkit.zip
+
+          # Extract next to the repo
+          Expand-Archive -Path w64devkit.zip -DestinationPath "$env:RUNNER_TEMP\w64devkit"
+
+          # Find the bin directory (the archive contains a versioned sub-folder)
+          $bin = Get-ChildItem "$env:RUNNER_TEMP\w64devkit" -Recurse -Filter "gcc.exe" |
+                 Select-Object -First 1 | Split-Path -Parent
+          Write-Host "Adding to PATH: $bin"
+
+          # Prepend so w64devkit tools win over any conflicting system tools
+          "$bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          # Also make sure nasm (installed by choco) is visible inside bash
+          "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build release
+        # w64devkit ships bash + make; uname returns MINGW64_NT-* so the
+        # Makefile's else-branch (Windows / .exe) is selected automatically.
+        shell: bash
+        run: make release_build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saturn-windows
+          path: saturn_player.exe
+
+  # ─────────────────────────────────────────────
+  # macOS  (native clang / Apple toolchain)
+  # ─────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          brew install \
+            nasm \
+            yasm \
+            pkg-config
+
+      - name: Build release
+        # PLATFORM=Darwin activates the Darwin branch added to the Makefile
+        run: make release_build PLATFORM=Darwin
+
+      - name: Rename binary
+        run: mv saturn_player.exe saturn_player_macos
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saturn-macos
+          path: saturn_player_macos
+
+  # ─────────────────────────────────────────────
+  # Create GitHub Release (only on tag push)
+  # ─────────────────────────────────────────────
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write # needed to create a release
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/ # each artifact lands in dist/<artifact-name>/
+
+      - name: Create GitHub Release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Saturn Player ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/saturn-linux/saturn_player_linux
+            dist/saturn-windows/saturn_player.exe
+            dist/saturn-macos/saturn_player_macos
+          generate_release_notes: true # auto-generates changelog from commits
