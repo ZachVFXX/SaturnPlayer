@@ -1039,7 +1039,9 @@ int main(int argc, char** argv) {
     arena_destroy(scratch_arena);
     arena_destroy(string_arena);
     CloseAudioDevice();
+    #ifdef _WIN32
     taskbar_progress_destroy();
+    #endif
     Clay_Raylib_Close();
     free(clay_memory_ptr);
     return 0;
