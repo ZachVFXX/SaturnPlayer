@@ -34,33 +34,16 @@ Requirements:
 
 * C compiler (gcc / clang)
 * `make`
-* FFmpeg development libraries
-* raylib
 * yt-dlp downloaded and set in path with deno and ffmpeg to path (needed for yt-dlp to fetch and download properly, see the yt-dlp wiki for more info)
 
-On Linux, it use pkg_config. Install the dependencies using your package manager:
-ffmpeg-dev
-raylib-dev
-freetype-dev
 
+ON WINDOWS: https://github.com/skeeto/w64devkit download the zip and extract it, cd in and launch w64devkit.exe
 ```bash
-#for linux
+#for linux in cmd and windows in w64devkit.exe
 git clone https://github.com/ZachVFXX/SaturnPlayer.git
-cd SaturnPlayer/src/
-make -f Makefile.lin release && ./main_release ~/musics_folders/
-```
-
-
-On Windows, download the ffmpeg and freetype source code and use the ffmpeg_build.txt and freetype.txt command to build the require 
-dependencies.
-You can download the released raylib already build on the raylib github page.
-Put the folder (include, lib, etc) in SaturnPlayer/freetype_build/ and SaturnPlayer/ffmpeg_build/
-
-```bash
-#for windows
-git clone https://github.com/ZachVFXX/SaturnPlayer.git
-cd SaturnPlayer/src/
-make -f Makefile.win release && ./main_release.exe ~/musics_folders/
+cd SaturnPlayer/
+make release # Wait and run it !
+./main_release ~/path_to_music_folder/
 ```
 
 ---

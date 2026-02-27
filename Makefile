@@ -140,7 +140,7 @@ CFLAGS = -std=c99 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L -DPLATFORM_DES
 
 debug: build_ffmpeg build_freetype build_raylib main.exe
 
-release: main_release.exe
+release: build_ffmpeg build_freetype build_raylib main_release.exe
 
 main.exe: $(OBJS)
 	$(CC) -o $@ $^ $(LIBS) $(CDEBUGFLAGS)
