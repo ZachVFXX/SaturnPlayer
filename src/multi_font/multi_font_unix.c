@@ -1,6 +1,5 @@
-// multifont_linux.c  — remplace multifont.c sur Linux
-#include "../../external/freetype_build/include/ft2build.h"
-#include "../../external/freetype_build/include/freetype/freetype.h"
+#include "../../external/freetype/include/ft2build.h"
+#include "../../external/freetype/include/freetype/freetype.h"
 
 
 #include <stdlib.h>
