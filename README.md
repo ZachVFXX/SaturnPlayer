@@ -1,3 +1,5 @@
+[![CI for Linux](https://github.com/ZachVFXX/SaturnPlayer/actions/workflows/linux_build.yml/badge.svg?branch=master)](https://github.com/ZachVFXX/SaturnPlayer/actions/workflows/linux_build.yml)
+
 # Music Player in C 
 
 WORK IN PROGRESS, FEEL FREE TO CONTRIBUTE
