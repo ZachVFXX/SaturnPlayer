@@ -18,8 +18,9 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install system dependencies
-        run:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
           sudo apt-get install -y nasm libx11-dev libxrandr-dev libxinerama-dev \
           libxcursor-dev libxi-dev libwayland-dev libxkbcommon-dev \
           autoconf automake libtool pkg-config \
