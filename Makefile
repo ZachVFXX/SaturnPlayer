@@ -66,7 +66,7 @@ FREETYPE_URL     = https://download.savannah.gnu.org/releases/freetype/$(FREETYP
 # Compiler flags
 # ─────────────────────────────────────────────────────────────────
 INCLUDES = -I$(RAYLIB_PATH)         \
-           -I$(FFMPEG_PATH)/include \
+           -I$(FFMPEG_PATH) \
            -I$(FREETYPE_PATH)/include \
            -I./src
 
