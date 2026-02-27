@@ -77,7 +77,15 @@ static void* search_thread(void* arg) {
             StringView sv_query = sv_trim(sv2);
 
             StringBuilder query = sb_from_sv(sv_query);
-            snprintf(search_arg, sizeof(search_arg), "%.*s%d:%.*s", (int)website.count, website.items, s->max_results, (int)query.count, query.items);
+
+            const char* w = website.items ? website.items : "";
+            const char* q = query.items ? query.items : "";
+
+            snprintf(search_arg, sizeof(search_arg),
+                     "%.*s%d:%.*s",
+                     (int)website.count, w,
+                     s->max_results,
+                     (int)query.count, q);
             sb_free(&website);
             sb_free(&query);
     } else if (sv_starts_with(sv, sv_from_cstr("https://"))) {

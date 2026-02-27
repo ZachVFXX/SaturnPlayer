@@ -116,7 +116,12 @@ static void get_fonts_dir(char* out, int out_len) {
     }
 
     if (windir[0] != '\0') {
-        snprintf(out, out_len, "%s\\Fonts", windir);
+        size_t len = strlen(windir);
+        if (len + 6 >= (size_t)out_len)  // "\Fonts" = 6 chars
+            len = out_len - 7;
+
+        memcpy(out, windir, len);
+        memcpy(out + len, "\\Fonts", 7); // inclut '\0'
     } else {
         out[0] = '\0';
     }
@@ -124,13 +129,20 @@ static void get_fonts_dir(char* out, int out_len) {
 
 // Push a path into FontList, deduplicating (case-insensitive).
 static void fontlist_push(FontList* fl, const char* path) {
+    if (!path) return;
     if (fl->count >= MAX_FONT_FILES) return;
+
     for (int i = 0; i < fl->count; i++)
-        if (_stricmp(fl->paths[i], path) == 0) return;
-    snprintf(fl->paths[fl->count],
-             MAX_PATH_LEN,
-             "%s",
-             path ? path : "");
+        if (_stricmp(fl->paths[i], path) == 0)
+            return;
+
+    size_t len = strlen(path);
+    if (len >= MAX_PATH_LEN)
+        len = MAX_PATH_LEN - 1;
+
+    memcpy(fl->paths[fl->count], path, len);
+    fl->paths[fl->count][len] = '\0';
+
     fl->count++;
 }
 
@@ -179,7 +191,12 @@ static void registry_find_family(FontList* fl,
         // val_data may be a bare filename or a full path
         char full[MAX_PATH_LEN * 2];
         if (strchr(val_data, '\\') || strchr(val_data, '/')) {
-            snprintf(full, sizeof(full), "%s", val_data);
+            size_t len = strlen(val_data);
+            if (len >= sizeof(full))
+                len = sizeof(full) - 1;
+
+            memcpy(full, val_data, len);
+            full[len] = '\0';
         } else {
             snprintf(full, sizeof(full), "%s\\%s", fonts_dir, val_data);
         }
