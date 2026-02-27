@@ -151,6 +151,7 @@ build_raylib:
 		OS=$(PLATFORM)                     \
 		CFLAGS="-DSUPPORT_MODULE_RMODELS=0 \
 		-DPLATFORM_DESKTOP_GLFW            \
+		-D_GLFW_X11                        \
 		-DSUPPORT_CAMERA_SYSTEM=0          \
 		-DSUPPORT_FILEFORMAT_JPG=1         \
 		-DSUPPORT_IMAGE_EXPORT=0           \
