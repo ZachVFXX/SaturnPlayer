@@ -15,7 +15,7 @@ jobs:
         with:
           submodules: recursive
       - name: Install dependencies
-        run: sudo apt-get install -y nasm
+        run: sudo apt-get install -y nasm libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libwayland-dev libxkbcommon-dev
       - name: make
         run: make release_build
       - name: Upload artifact
