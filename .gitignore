@@ -8,7 +8,7 @@
 *.elf
 
 external/freetype
-freetype-2.13.2.tar.xz
+freetype-*.*.*.tar.xz
 
 src/.clangd
 *.wav

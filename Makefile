@@ -34,7 +34,7 @@ else
 	# Windows with mingw-w64
 	CC             = x86_64-w64-mingw32-gcc
 	PLATFORM_LIBS  = -lopengl32 -lgdi32 -lwinmm -lws2_32 \
-	                 -lpthread -lm -lbcrypt -ldwmapi -lole32 -lz -liconv
+	                 -lpthread -lm -lbcrypt -ldwmapi -lole32
 	CDEBUGFLAGS    = -ggdb -g
 	CRELEASEFLAGS  = -O3 -mwindows
 	TARGET_OS      = mingw32
