@@ -74,7 +74,7 @@ static void* search_thread(void* arg) {
                 sv2.count = 0;
             StringBuilder website = sb_from_sv(sv2);
 
-            if (index + 1 < sv.count) {
+            if (sv.count > 0 && index + 1 < (size_t)sv.count) {
                 sv2.data  = sv.data + index + 1;
                 sv2.count = sv.count - (index + 1);
             } else {
