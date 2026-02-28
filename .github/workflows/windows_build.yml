@@ -16,6 +16,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install dependencies
+        run: |
+          choco install mingw
+
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
@@ -25,8 +29,6 @@ jobs:
             mingw-w64-x86_64-gcc
             make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-libiconv
-            mingw-w64-x86_64-zlib
 
       - name: Build
         shell: msys2 {0}
