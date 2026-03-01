@@ -9,6 +9,7 @@
 
 external/freetype
 freetype-*.*.*.tar.xz
+external/harfbuzz
 
 src/.clangd
 *.wav

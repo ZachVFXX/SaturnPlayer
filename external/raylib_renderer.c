@@ -5,6 +5,10 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "clay.h"
+#include "../src/multi_font/tr_raylib.h"
+
+extern TR_Renderer *tr_renderer; /* defined in main.c */
+extern TR_RL_State  tr_rl_state; /* defined in main.c */
 
 #define CLAY_RECTANGLE_TO_RAYLIB_RECTANGLE(rectangle) (Rectangle) { .x = rectangle.x, .y = rectangle.y, .width = rectangle.width, .height = rectangle.height }
 #define CLAY_COLOR_TO_RAYLIB_COLOR(color) (Color) { .r = (unsigned char)roundf(color.r), .g = (unsigned char)roundf(color.g), .b = (unsigned char)roundf(color.b), .a = (unsigned char)roundf(color.a) }
@@ -248,7 +252,11 @@ void Clay_Raylib_Render(Clay_RenderCommandArray renderCommands, Font* fonts)
                 // Raylib uses standard C strings so isn't compatible with cheap slices, we need to clone the string to append null terminator
                 memcpy(temp_render_buffer, textData->stringContents.chars, textData->stringContents.length);
                 temp_render_buffer[textData->stringContents.length] = '\0';
-                DrawTextEx(fontToUse, temp_render_buffer, (Vector2){boundingBox.x, boundingBox.y}, (float)textData->fontSize, (float)textData->letterSpacing, CLAY_COLOR_TO_RAYLIB_COLOR(textData->textColor));
+                if (tr_renderer && tr_rl_state.atlas.ready) {
+                    TR_RL_DrawText(tr_renderer, &tr_rl_state, temp_render_buffer, (Vector2){boundingBox.x, boundingBox.y}, CLAY_COLOR_TO_RAYLIB_COLOR(textData->textColor));
+                } else {
+                    DrawTextEx(fontToUse, temp_render_buffer, (Vector2){boundingBox.x, boundingBox.y}, (float)textData->fontSize, (float)textData->letterSpacing, CLAY_COLOR_TO_RAYLIB_COLOR(textData->textColor));
+                }
 
                 break;
             }

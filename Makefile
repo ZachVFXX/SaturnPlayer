@@ -73,6 +73,7 @@ INCLUDES = -I$(RAYLIB_PATH)           \
            -I$(FFMPEG_PATH)           \
            -I$(FFMPEG_BUILD)          \
            -I$(FREETYPE_PATH)/include \
+           -Iexternal/harfbuzz/include/harfbuzz\
            -I./src
 
 LIBS = -L$(RAYLIB_PATH) -lraylib \
@@ -81,9 +82,10 @@ LIBS = -L$(RAYLIB_PATH) -lraylib \
        $(FFMPEG_BUILD)/libavutil/libavutil.a     \
        $(FFMPEG_BUILD)/libswresample/libswresample.a \
        $(FREETYPE_PATH)/objs/.libs/libfreetype.a \
+       -Lexternal/harfbuzz/lib -lharfbuzz \
        $(PLATFORM_LIBS)
 
-CFLAGS = -std=c99 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
+CFLAGS = -std=c99 -Wall -Wextra -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
 
 OBJS = src/main.o src/win/titlebar.o
 
