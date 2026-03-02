@@ -20,17 +20,24 @@
 #include "ctype.h"
 #include <assert.h>
 
-#ifndef _WIN32
-#include "multi_font/multi_font_unix.c"
-#else
-#include "multi_font/multi_font_win.c"
-#include "win/titlebar.h"
-#include "win/taskbar_progress.c"
-#endif
+/* tr_core.h must come before raylib — it defines NOGDI/NOUSER on Windows */
+#include "multi_font/tr_core.h"
 
 #define CLAY_IMPLEMENTATION
 #include "../external/clay.h"
+
+#include "multi_font/tr_raylib.h"
+
+TR_Renderer *tr_renderer = NULL;
+TR_RL_State  tr_rl_state = {0};
+TR_RL_Fonts  clay_fonts  = {0};
+
 #include "../external/raylib_renderer.c"
+
+#ifdef _WIN32
+#include "win/titlebar.h"
+#include "win/taskbar_progress.c"
+#endif
 
 #define VECTOR_IMPLEMENTATION
 #include "utils/vector.h"
@@ -187,7 +194,6 @@ pthread_mutex_t song_loading_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t arena_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static Font fonts[2] = {0};
-static volatile bool fonts_need_rebuild = false;
 
 
 void print_help(char* program_name) {
@@ -196,61 +202,11 @@ void print_help(char* program_name) {
     exit(-1);
 }
 
-const char* preferred[] = { "Noto Sans", "Noto Sans CJK SC" };
-
 
 static int IsSupportedAudio(const char *ext)
 {
     return strcmp(ext, ".mp3")  == 0 || strcmp(ext, ".wav")  == 0 || strcmp(ext, ".ogg")  == 0 || strcmp(ext, ".qoas") == 0 ||
            strcmp(ext, ".xm")   == 0 || strcmp(ext, ".mod")  == 0;
-}
-
-void RebuildFonts(void) {
-    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu songs...", core_get_queue_count(core));
-    // TODO: Make an atlas and add the char one time and dont rebuild it from scratch. Add function to verify if a string is renderable
-    // Collect all strings
-    size_t query = (TextLength(searchQuery) != 0) ? TextLength(searchQuery) : 0;
-    size_t search_count = (currentSearchResults != NULL) ? currentSearchResults->count : 0;
-    TraceLog(LOG_INFO, "FONTS: rebuilding atlas from %zu searches...", search_count);
-    size_t song_count = core_get_queue_count(core);
-    const char** all_strings = malloc(sizeof(char*) * (song_count + search_count + query) * 3 + 1);
-    int str_count = 0;
-
-    for (size_t i = 0; i < song_count; i++) {
-        Song* s = core_get_song_at(core, i);
-        all_strings[str_count++] = arena_get_string(string_arena, s->title);
-        all_strings[str_count++] = arena_get_string(string_arena, s->artists);
-        all_strings[str_count++] = arena_get_string(string_arena, s->album);
-    }
-
-    if (currentSearchResults != NULL) {
-        for (int i = 0; i < currentSearchResults->count; i++) {
-            all_strings[str_count++] = currentSearchResults->results[i].artist;
-            all_strings[str_count++] = currentSearchResults->results[i].title;
-        }
-    }
-
-    if (TextLength(searchQuery) != 0) {
-        all_strings[str_count++] = searchQuery;
-    }
-
-
-    int cp_count = 0;
-    int* codepoints = CollectCodepoints(all_strings, str_count, &cp_count);
-    free(all_strings);
-
-    TraceLog(LOG_INFO, "FONTS: %d unique codepoints collected", cp_count);
-
-    // Unload old fonts if they exist
-    if (fonts[0].texture.id != 0) UnloadFont(fonts[0]);
-    if (fonts[1].texture.id != 0) UnloadFont(fonts[1]);
-
-    fonts[0] = BuildMultiFontAtlas("Poppins Regular", preferred, 2, FONT_SIZE, codepoints, cp_count);
-    fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, codepoints, cp_count);
-
-    Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
-    free(codepoints);
-    TraceLog(LOG_INFO, "FONTS: atlas rebuilt OK");
 }
 
 void add_song_from_path(FilePathList files) {
@@ -305,19 +261,14 @@ void* load_songs_thread_func(void* arg) {
         } else {
             TraceLog(LOG_ERROR, "Failed to create song at %s.", filepath);
         }
-
-        pthread_mutex_lock(&song_loading_mutex);
-        fonts_need_rebuild = true;
-        pthread_mutex_unlock(&song_loading_mutex);
     }
 
     TraceLog(LOG_INFO, "Thread finished. Queue: %d, took: %f s",
              core_get_queue_count(data->core), GetTime() - start_time);
 
-    // Final rebuild to catch the last batch
+    // Mark loading as done
     pthread_mutex_lock(&song_loading_mutex);
     loading_songs = false;
-    fonts_need_rebuild = true;
     pthread_mutex_unlock(&song_loading_mutex);
 
     if (data->is_file_dropped) UnloadDroppedFiles(data->files);
@@ -430,11 +381,18 @@ int main(int argc, char** argv) {
 
     // SetExitKey(KEY_NULL);
 
-    int bootstrap_cps[95];
-    for (int i = 0; i < 95; i++) bootstrap_cps[i] = 0x20 + i;
-    fonts[0] = BuildMultiFontAtlas("Poppins Regular",           preferred, 2, FONT_SIZE, bootstrap_cps, 95);
-    fonts[1] = BuildMultiFontAtlas("Poppins SemiBold",  preferred, 2, FONT_SIZE, bootstrap_cps, 95);
-    Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
+    tr_renderer = TR_Create(FONT_SIZE);
+
+    TR_AddFontPriority(tr_renderer, "assets/fonts/Poppins-SemiBold.ttf"); /* fontId 1 */
+    TR_AddFontPriority(tr_renderer, "assets/fonts/Poppins-Regular.ttf");  /* fontId 0 */
+
+    TR_AddFont(tr_renderer, "assets/fonts/NotoSansSymbols2-Regular.ttf");
+    TR_AddFont(tr_renderer, "assets/fonts/NotoSans-Regular.ttf");
+
+    TR_RL_InitAtlas(&tr_rl_state);
+    clay_fonts = (TR_RL_Fonts){ .renderer = tr_renderer, .font_size = FONT_SIZE };
+
+    Clay_SetMeasureTextFunction(TR_RL_MeasureText, &clay_fonts);
 
     for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
 
@@ -465,9 +423,6 @@ int main(int argc, char** argv) {
                 {
                     memcpy(searchQuery + length, utf8, byteSize);
                     searchQuery[length + byteSize] = '\0';
-                    pthread_mutex_lock(&song_loading_mutex);
-                    fonts_need_rebuild = true;
-                    pthread_mutex_unlock(&song_loading_mutex);
                 }
 
                 key = GetCharPressed();
@@ -481,9 +436,6 @@ int main(int argc, char** argv) {
                 {
                     memcpy(searchQuery + length, ctrlv, strlen(ctrlv));
                     searchQuery[length + strlen(ctrlv)] = '\0';
-                    pthread_mutex_lock(&song_loading_mutex);
-                    fonts_need_rebuild = true;
-                    pthread_mutex_unlock(&song_loading_mutex);
                 }
             }
 
@@ -562,9 +514,6 @@ int main(int argc, char** argv) {
         if (searcher && search_done(searcher)) {
             currentSearchResults = search_results(searcher);
             searcher = NULL;
-            pthread_mutex_lock(&song_loading_mutex);
-            fonts_need_rebuild = true;
-            pthread_mutex_unlock(&song_loading_mutex);
         }
 
         if (downloader && download_done(downloader)) {
@@ -582,7 +531,7 @@ int main(int argc, char** argv) {
             void* new_clay_memory_ptr = malloc(totalMemorySize);
             clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, new_clay_memory_ptr);
             Clay_Initialize(clayMemory, (Clay_Dimensions){ (float)GetScreenWidth(), (float)GetScreenHeight() }, (Clay_ErrorHandler){ HandleClayErrors, 0 });
-            Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
+            Clay_SetMeasureTextFunction(TR_RL_MeasureText, &clay_fonts);
 
             free(clay_memory_ptr);
             clay_memory_ptr = new_clay_memory_ptr;
@@ -622,15 +571,6 @@ int main(int argc, char** argv) {
         }
 
         processPendingTextures();
-
-        pthread_mutex_lock(&song_loading_mutex);
-        bool do_rebuild = fonts_need_rebuild;
-        if (do_rebuild) fonts_need_rebuild = false;
-        pthread_mutex_unlock(&song_loading_mutex);
-
-        if (do_rebuild) {
-            RebuildFonts();
-        }
 
         //GET DEFAULT DATA FOR MOUSE AND DIMENSION
         Vector2 mouseWheelDelta = GetMouseWheelMoveV();

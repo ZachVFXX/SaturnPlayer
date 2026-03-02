@@ -282,15 +282,27 @@ static void TR_RL_DrawText(TR_Renderer *tr, TR_RL_State *s,
     if (!utf8 || !utf8[0] || !s->atlas.ready) return;
 
     TR_ShapedText *st = TR_Shape(tr, utf8);
-    int baseline = tr->font_size * TR_CANVAS_PAD_TOP;
+
+    /*
+     * draw_y in TR_Glyph is relative to the static canvas top, where
+     * baseline = font_size * TR_CANVAS_PAD_TOP.
+     *
+     * Clay passes pos.y as the TOP of the text box (same as DrawTextEx).
+     * DrawTextEx places the first ascender at pos.y, which means the
+     * baseline sits at pos.y + font_size (approx).
+     *
+     * To map canvas coordinates → screen coordinates:
+     *   screen_y = pos.y + draw_y - font_size * (TR_CANVAS_PAD_TOP - 1)
+     *
+     * This shifts the canvas so its baseline aligns with pos.y + font_size,
+     * matching DrawTextEx behaviour exactly.
+     */
+    float y_offset = -(float)(tr->font_size * (TR_CANVAS_PAD_TOP - 1));
 
     for (int i = 0; i < st->count; i++) {
         TR_Glyph *g = &st->glyphs[i];
         if (!g->bitmap || g->width == 0 || g->rows == 0) continue;
 
-        /* Determine face_idx + glyph_idx to look up cache entry key   */
-        /* We stored the bitmap pointer directly in TR_Glyph; to find  */
-        /* the cache entry we search by bitmap pointer.                 */
         TR__CachedGlyph *cg = NULL;
         uint64_t found_key  = 0;
         for (int ci = 0; ci < tr->cache_used; ci++) {
@@ -302,21 +314,19 @@ static void TR_RL_DrawText(TR_Renderer *tr, TR_RL_State *s,
         }
         if (!cg) continue;
 
-        int face_idx   = (int)(found_key >> 32);
-        uint32_t gi    = (uint32_t)(found_key & 0xFFFFFFFF);
+        int face_idx = (int)(found_key >> 32);
+        uint32_t gi  = (uint32_t)(found_key & 0xFFFFFFFF);
 
         TR_RL_AtlasEntry *e = tr_rl__ensure_in_atlas(s, cg, face_idx, gi);
         if (!e || !e->in_atlas) continue;
 
-        /* UV rectangle in the atlas */
         Rectangle src = {
             (float)e->atlas_x, (float)e->atlas_y,
             (float)e->width,   (float)e->rows
         };
-        /* Destination on screen, offset from text origin + baseline   */
         Rectangle dst = {
             pos.x + (float)g->draw_x,
-            pos.y + (float)(g->draw_y - baseline),
+            pos.y + (float)g->draw_y + y_offset,
             (float)g->width, (float)g->rows
         };
         DrawTexturePro(s->atlas.tex, src, dst, (Vector2){0,0}, 0.0f, tint);
@@ -338,6 +348,11 @@ static void TR_RL_DrawText(TR_Renderer *tr, TR_RL_State *s,
  * If you use a fixed font size (most common), just ignore config->fontSize.
  * If you support multiple sizes, create one TR_Renderer per size.
  */
+
+/* clay.h must be included before tr_raylib.h so its types are available. */
+#ifndef CLAY_HEADER
+  #error "Include clay.h before tr_raylib.h"
+#endif
 
 static Clay_Dimensions TR_RL_MeasureText(Clay_StringSlice    text,
                                           Clay_TextElementConfig *config,
@@ -361,7 +376,7 @@ static Clay_Dimensions TR_RL_MeasureText(Clay_StringSlice    text,
         sz.height *= scale;
     }
 
-    return (Clay_Dimensions){ sz.width, sz.height };
+    return (Clay_Dimensions){ sz.width, (float)fonts->renderer->font_size };
 }
 
 #endif /* TR_RAYLIB_H */

@@ -252,12 +252,7 @@ void Clay_Raylib_Render(Clay_RenderCommandArray renderCommands, Font* fonts)
                 // Raylib uses standard C strings so isn't compatible with cheap slices, we need to clone the string to append null terminator
                 memcpy(temp_render_buffer, textData->stringContents.chars, textData->stringContents.length);
                 temp_render_buffer[textData->stringContents.length] = '\0';
-                if (tr_renderer && tr_rl_state.atlas.ready) {
-                    TR_RL_DrawText(tr_renderer, &tr_rl_state, temp_render_buffer, (Vector2){boundingBox.x, boundingBox.y}, CLAY_COLOR_TO_RAYLIB_COLOR(textData->textColor));
-                } else {
-                    DrawTextEx(fontToUse, temp_render_buffer, (Vector2){boundingBox.x, boundingBox.y}, (float)textData->fontSize, (float)textData->letterSpacing, CLAY_COLOR_TO_RAYLIB_COLOR(textData->textColor));
-                }
-
+                TR_RL_DrawText(tr_renderer, &tr_rl_state, temp_render_buffer, (Vector2){boundingBox.x, boundingBox.y}, CLAY_COLOR_TO_RAYLIB_COLOR(textData->textColor));
                 break;
             }
             case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
