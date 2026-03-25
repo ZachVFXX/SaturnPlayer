@@ -1,10 +1,10 @@
 /*
- * tr_core.h — Professional Unicode Text Renderer Core  v4
+ * tr_core.h \u2014 Professional Unicode Text Renderer Core  v4
  *
  * Key improvements over v3:
  *  - Font itemization: each cluster is shaped with the face that has it
  *  - Combining/diacritic runs are shaped together with their base glyph
- *    using the SAME face → HarfBuzz gives x_advance=0 correctly
+ *    using the SAME face \u2192 HarfBuzz gives x_advance=0 correctly
  *  - TR_AddFont() / TR_AddFontPriority() for explicit fallback chains
  *  - Unicode combining block detection for correct run splitting
  */
@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-/* Portable case-insensitive compare — works under -std=c99 */
+/* Portable case-insensitive compare \u2014 works under -std=c99 */
 static int tr__strcasecmp(const char *a, const char *b) {
     while (*a && *b) {
         int ca = (*a >= 'A' && *a <= 'Z') ? (*a + 32) : (unsigned char)*a;
@@ -37,7 +37,7 @@ static int tr__strcasecmp(const char *a, const char *b) {
 #include "../../external/harfbuzz/src/hb-ft.h"
 
 
-/* ── Platform ──────────────────────────────────────────────────────────── */
+/* \u2500\u2500 Platform \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 #ifdef _WIN32
   #ifndef WIN32_LEAN_AND_MEAN
@@ -67,11 +67,11 @@ static int tr__strcasecmp(const char *a, const char *b) {
   #include <dirent.h>
   #include <sys/stat.h>
   static const char *TR__FONT_DIRS[] = {
-    "/usr/share/fonts", "/usr/local/share/fonts", NULL
+    "/usr/share/fonts", "~/.local/share/fonts", NULL
   };
 #endif
 
-/* ── Config ────────────────────────────────────────────────────────────── */
+/* \u2500\u2500 Config \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 #ifndef TR_MAX_FONTS
   #define TR_MAX_FONTS   256
@@ -83,9 +83,9 @@ static int tr__strcasecmp(const char *a, const char *b) {
   #define TR_CANVAS_PAD_TOP 3
 #endif
 
-/* ── Is codepoint a combining character? ───────────────────────────────── */
+/* \u2500\u2500 Is codepoint a combining character? \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 /*
- * Combining chars must NOT split runs — they must be shaped together with
+ * Combining chars must NOT split runs \u2014 they must be shaped together with
  * their base glyph using the same face so HarfBuzz sets x_advance=0.
  */
 static bool tr__is_combining(hb_codepoint_t cp) {
@@ -103,7 +103,7 @@ static bool tr__is_combining(hb_codepoint_t cp) {
         || (cp >= 0x20E3 && cp <= 0x20E3);  /* Combining Enclosing Keycap        */
 }
 
-/* ── Types ─────────────────────────────────────────────────────────────── */
+/* \u2500\u2500 Types \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 typedef struct { float width; float height; } TR_Size;
 
@@ -142,7 +142,7 @@ struct TR_Renderer {
     int             cache_used;
 };
 
-/* ── Internal: directory scanning ──────────────────────────────────────── */
+/* \u2500\u2500 Internal: directory scanning \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 static bool tr__is_dir(const char *path) {
     struct stat st;
@@ -189,7 +189,7 @@ static void tr__scan_dir(TR_Renderer *tr, const char *dir_path) {
     closedir(dir);
 }
 
-/* ── Internal: glyph cache ─────────────────────────────────────────────── */
+/* \u2500\u2500 Internal: glyph cache \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 static int tr__find_face(TR_Renderer *tr, hb_codepoint_t cp) {
     for (int i = 0; i < tr->face_count; i++)
@@ -240,7 +240,7 @@ static hb_codepoint_t tr__utf8_decode(const unsigned char *s, int *bytes_out) {
     *bytes_out = 1; return 0xFFFD;
 }
 
-/* ── Font itemization ───────────────────────────────────────────────────
+/* \u2500\u2500 Font itemization \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
  *
  * Walk the UTF-8 string and split it into runs.
  * Each run = a contiguous sequence of codepoints best covered by the
@@ -307,10 +307,10 @@ static int tr__itemize(TR_Renderer *tr, const char *utf8,
     return run_count;
 }
 
-/* ── Public API ─────────────────────────────────────────────────────────── */
+/* \u2500\u2500 Public API \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 /*
- * TR_Create — scan system fonts, init renderer.
+ * TR_Create \u2014 scan system fonts, init renderer.
  */
 static TR_Renderer *TR_Create(int fontSize) {
     TR_Renderer *tr = (TR_Renderer *)calloc(1, sizeof(TR_Renderer));
@@ -333,7 +333,48 @@ static TR_Renderer *TR_Create(int fontSize) {
 }
 
 /*
- * TR_AddFont — append a font to the END of the fallback chain.
+ * TR_CreateWithFont \u2014 like TR_Create but your font is loaded FIRST so it
+ *   takes priority over every system font for every glyph it covers.
+ *   System fonts are still scanned afterwards as a fallback chain.
+ *
+ *   primaryFontPath: path to your .ttf / .otf file.
+ *                    Pass NULL to behave identically to TR_Create().
+ */
+static TR_Renderer *TR_CreateWithFont(int fontSize, const char *primaryFontPath) {
+    TR_Renderer *tr = (TR_Renderer *)calloc(1, sizeof(TR_Renderer));
+    if (!tr) return NULL;
+    tr->font_size = fontSize;
+
+    if (FT_Init_FreeType(&tr->ft)) {
+        fprintf(stderr, "[TR] FreeType init failed\n");
+        free(tr); return NULL;
+    }
+
+    /* Load the primary font first so tr__find_face() always sees it first */
+    if (primaryFontPath) {
+        int before = tr->face_count;
+        tr__load_font_file(tr, primaryFontPath);
+        if (tr->face_count == before)
+            fprintf(stderr, "[TR] Warning: primary font not loaded: %s\n", primaryFontPath);
+        else
+            printf("[TR] Primary font loaded: %s (%d face(s))\n",
+                   primaryFontPath, tr->face_count - before);
+    }
+
+    /* Scan system fonts for fallback coverage */
+    for (int d = 0; TR__FONT_DIRS[d]; d++)
+        tr__scan_dir(tr, TR__FONT_DIRS[d]);
+
+    if (!tr->face_count) {
+        fprintf(stderr, "[TR] No fonts found at all\n");
+        free(tr); return NULL;
+    }
+    printf("[TR] %d font faces loaded total\n", tr->face_count);
+    return tr;
+}
+
+/*
+ * TR_AddFont \u2014 append a font to the END of the fallback chain.
  *   Use for supplemental/symbol fonts that fill gaps.
  */
 static bool TR_AddFont(TR_Renderer *tr, const char *path) {
@@ -343,7 +384,7 @@ static bool TR_AddFont(TR_Renderer *tr, const char *path) {
 }
 
 /*
- * TR_AddFontPriority — prepend a font to the FRONT of the fallback chain.
+ * TR_AddFontPriority \u2014 prepend a font to the FRONT of the fallback chain.
  *   Use for your primary/branded fonts that should take precedence.
  */
 static bool TR_AddFontPriority(TR_Renderer *tr, const char *path) {
@@ -363,7 +404,7 @@ static bool TR_AddFontPriority(TR_Renderer *tr, const char *path) {
 }
 
 /*
- * TR_Shape — itemize by font, shape each run with HarfBuzz using the
+ * TR_Shape \u2014 itemize by font, shape each run with HarfBuzz using the
  *   correct face, rasterize, return list of positioned TR_Glyph.
  *
  * This is the key fix for zalgo: each run containing a base + its
@@ -443,7 +484,7 @@ static TR_ShapedText *TR_Shape(TR_Renderer *tr, const char *utf8) {
                 g->bitmap = NULL;
             }
 
-            /* HarfBuzz advance is 0 for combining chars — correct by design */
+            /* HarfBuzz advance is 0 for combining chars \u2014 correct by design */
             if (pos[i].x_advance != 0) {
                 g->advance_x = pos[i].x_advance >> 6;
             } else if (glyph_id == 0 && cg) {

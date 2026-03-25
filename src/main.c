@@ -380,15 +380,21 @@ int main(int argc, char** argv) {
     #endif
 
     // SetExitKey(KEY_NULL);
+    
+    // Get the directory of the executable
+    const char *exe_dir = GetApplicationDirectory();
 
-    tr_renderer = TR_Create(FONT_SIZE);
+    char font_regular[512], font_semibold[512];
+    snprintf(font_semibold, sizeof(font_semibold), "%sassets/fonts/Poppins-SemiBold.ttf", exe_dir);
+    snprintf(font_regular,  sizeof(font_regular),  "%sassets/fonts/Poppins-Regular.ttf",  exe_dir);
+    TraceLog(LOG_INFO, "Font load: SemiBold=%s Regular=%s", font_regular, font_semibold);
+    tr_renderer = TR_CreateWithFont(FONT_SIZE, font_regular);
+    
+    TR_AddFont(tr_renderer, font_semibold);
+    
+    TraceLog(LOG_INFO, "Face 0: %s %s", tr_renderer->faces[0]->family_name, tr_renderer->faces[0]->style_name);
 
-    TR_AddFontPriority(tr_renderer, "assets/fonts/Poppins-SemiBold.ttf"); /* fontId 1 */
-    TR_AddFontPriority(tr_renderer, "assets/fonts/Poppins-Regular.ttf");  /* fontId 0 */
-
-    TR_AddFont(tr_renderer, "assets/fonts/NotoSansSymbols2-Regular.ttf");
-    TR_AddFont(tr_renderer, "assets/fonts/NotoSans-Regular.ttf");
-
+    TraceLog(LOG_INFO, "Face 1: %s %s", tr_renderer->faces[1]->family_name, tr_renderer->faces[1]->style_name);
     TR_RL_InitAtlas(&tr_rl_state);
     clay_fonts = (TR_RL_Fonts){ .renderer = tr_renderer, .font_size = FONT_SIZE };
 

@@ -1,10 +1,10 @@
-.PHONY: clean clean_raylib clean_ffmpeg clean_freetype clean_local
-.PHONY: build_ffmpeg build_raylib build_freetype fetch_freetype
+.PHONY: clean clean_raylib clean_ffmpeg clean_freetype clean_harfbuzz clean_local
+.PHONY: build_ffmpeg build_raylib build_freetype fetch_freetype build_harfbuzz
 .PHONY: debug release debug_build release_build
 
-# ───────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Platform detection  (can be overridden: make release PLATFORM=Windows)
-# ───────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 PLATFORM ?= $(shell uname)
 
 $(info Building for $(PLATFORM))
@@ -12,7 +12,7 @@ $(info Building for $(PLATFORM))
 JOBS := 4
 
 ifeq ($(PLATFORM), Linux)
-	CC             = gcc
+	CC             ?= tcc
 	PLATFORM_LIBS  = -lGL -lX11 -lm -lpthread -ldl -lrt -lz
 	CDEBUGFLAGS    = -ggdb -g -fsanitize=address
 	CRELEASEFLAGS  = -O3
@@ -20,7 +20,7 @@ ifeq ($(PLATFORM), Linux)
 	BIN_SUFFIX     =
 	GLFW_BACKEND   = -D_GLFW_X11
 else ifeq ($(PLATFORM), Darwin)
-	CC             = clang
+	CC             ?= clang
 	PLATFORM_LIBS  = -framework OpenGL -framework Cocoa     \
 	                 -framework IOKit -framework CoreAudio \
 	                 -framework CoreVideo \
@@ -32,7 +32,7 @@ else ifeq ($(PLATFORM), Darwin)
 	GLFW_BACKEND   = -D_GLFW_COCOA
 else
 	# Windows with mingw-w64
-	CC             = x86_64-w64-mingw32-gcc
+	CC             ?= x86_64-w64-mingw32-gcc
 	PLATFORM_LIBS  = -lopengl32 -lgdi32 -lwinmm -lws2_32 \
 	                 -lpthread -lm -lbcrypt -ldwmapi -lole32
 	CDEBUGFLAGS    = -ggdb -g
@@ -47,9 +47,9 @@ OS_TRIPLET = $(shell $(CC) -dumpmachine)
 
 $(info Building using $(CC))
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Paths
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 EXT_PATH = external
 
 # FFmpeg
@@ -59,6 +59,10 @@ FFMPEG_BUILD = $(FFMPEG_PATH)/build
 # Raylib
 RAYLIB_PATH  = $(EXT_PATH)/raylib/src
 
+# HarfBuzz
+HARFBUZZ_PATH  = $(EXT_PATH)/harfbuzz
+HARFBUZZ_BUILD = $(HARFBUZZ_PATH)/meson-build
+
 # FreeType
 FREETYPE_PATH    = $(EXT_PATH)/freetype
 FREETYPE_BUILD   = $(FREETYPE_PATH)/build
@@ -66,14 +70,14 @@ FREETYPE_VERSION = 2.14.1
 FREETYPE_ARCHIVE = freetype-$(FREETYPE_VERSION).tar.xz
 FREETYPE_URL     = https://sourceforge.net/projects/freetype/files/freetype2/$(FREETYPE_VERSION)/$(FREETYPE_ARCHIVE)/download
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Compiler flags
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 INCLUDES = -I$(RAYLIB_PATH)           \
            -I$(FFMPEG_PATH)           \
            -I$(FFMPEG_BUILD)          \
            -I$(FREETYPE_PATH)/include \
-           -Iexternal/harfbuzz/include/harfbuzz\
+           -I$(HARFBUZZ_PATH)/include/harfbuzz \
            -I./src
 
 LIBS = -L$(RAYLIB_PATH) -lraylib \
@@ -82,31 +86,31 @@ LIBS = -L$(RAYLIB_PATH) -lraylib \
        $(FFMPEG_BUILD)/libavutil/libavutil.a     \
        $(FFMPEG_BUILD)/libswresample/libswresample.a \
        $(FREETYPE_PATH)/objs/.libs/libfreetype.a \
-       -Lexternal/harfbuzz/lib -lharfbuzz \
+       -L$(HARFBUZZ_PATH)/lib -lharfbuzz \
        $(PLATFORM_LIBS)
 
 CFLAGS = -std=c99 -Wall -Wextra -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
 
 OBJS = src/main.o src/win/titlebar.o
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Top-level targets
-# ─────────────────────────────────────────────────────────────────
-debug_build:   build_ffmpeg build_freetype build_raylib saturn_debug$(BIN_SUFFIX)
-release_build: build_ffmpeg build_freetype build_raylib saturn_player$(BIN_SUFFIX)
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+debug_build:   build_ffmpeg build_freetype build_harfbuzz build_raylib saturn_debug$(BIN_SUFFIX)
+release_build: build_ffmpeg build_freetype build_harfbuzz build_raylib saturn_player$(BIN_SUFFIX)
 
 debug:   saturn_debug$(BIN_SUFFIX)
 release: saturn_player$(BIN_SUFFIX)
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Compilation
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS) $(INCLUDES) $(EXTRA_FLAGS)
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Linking
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 saturn_debug$(BIN_SUFFIX): EXTRA_FLAGS = $(CDEBUGFLAGS)
 saturn_player$(BIN_SUFFIX): EXTRA_FLAGS = $(CRELEASEFLAGS)
 
@@ -116,9 +120,9 @@ saturn_debug$(BIN_SUFFIX): $(OBJS)
 saturn_player$(BIN_SUFFIX): $(OBJS)
 	$(CC) -o $@ $^ $(LIBS) $(CRELEASEFLAGS)
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # FFmpeg
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 build_ffmpeg:
 	$(info Building ffmpeg)
 	mkdir -p $(FFMPEG_BUILD)
@@ -126,6 +130,7 @@ build_ffmpeg:
 	$(CURDIR)/$(FFMPEG_PATH)/configure \
 		--target-os=$(TARGET_OS) \
 		--arch=x86_64 \
+		--cc=$(CC) \
 		--enable-static \
 		--disable-shared \
 		--disable-all \
@@ -150,9 +155,9 @@ build_ffmpeg:
 	$(MAKE) -j$(JOBS)
 	$(info FFmpeg built successfully)
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Raylib
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 build_raylib:
 	$(info Building raylib)
 	$(MAKE) -j$(JOBS) -C $(RAYLIB_PATH)    \
@@ -175,9 +180,9 @@ build_raylib:
 		-DSUPPORT_FILEFORMAT_FNT=0"
 	$(info Raylib built successfully)
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # FreeType
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $(FREETYPE_ARCHIVE):
 	curl -fL --retry 3 --output $@ $(FREETYPE_URL)
 
@@ -192,7 +197,7 @@ build_freetype: fetch_freetype
 	$(info Building freetype)
 	mkdir -p $(FREETYPE_BUILD)
 	cd $(FREETYPE_PATH) && \
-	./configure \
+	CC=$(CC) ./configure \
 		--host=$(OS_TRIPLET) \
 		--enable-static \
 		--disable-shared \
@@ -202,13 +207,38 @@ build_freetype: fetch_freetype
 		--without-bzip2 \
 		--without-doc \
 		--with-zlib=no && \
-	$(MAKE) -j$(JOBS)
+	$(MAKE) -j$(JOBS) CC=$(CC)
 	$(info FreeType built successfully)
 
-# ─────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# HarfBuzz
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+build_harfbuzz: build_freetype
+	$(info Building harfbuzz)
+	mkdir -p $(CURDIR)/$(FREETYPE_BUILD)/pkgconfig
+	printf 'prefix=%s\nexec_prefix=$${prefix}\nlibdir=%s\nincludedir=%s\n\nName: FreeType 2\nDescription: A free, high-quality font engine\nVersion: $(FREETYPE_VERSION)\nCflags: -I$${includedir}\nLibs: $${libdir}/libfreetype.a\n' \
+		"$(CURDIR)/$(FREETYPE_PATH)" \
+		"$(CURDIR)/$(FREETYPE_PATH)/objs/.libs" \
+		"$(CURDIR)/$(FREETYPE_PATH)/include" \
+		> $(CURDIR)/$(FREETYPE_BUILD)/pkgconfig/freetype2.pc
+	CC=$(CC) PKG_CONFIG_PATH=$(CURDIR)/$(FREETYPE_BUILD)/pkgconfig \
+	meson setup --reconfigure \
+		--default-library=static \
+		--prefix=$(CURDIR)/$(HARFBUZZ_PATH) \
+		-Dtests=disabled \
+		-Ddocs=disabled \
+		-Dbenchmark=disabled \
+		-Dintrospection=disabled \
+		-Dfreetype=enabled \
+		$(HARFBUZZ_BUILD) $(HARFBUZZ_PATH)
+	meson compile -C $(HARFBUZZ_BUILD) -j$(JOBS)
+	meson install -C $(HARFBUZZ_BUILD)
+	$(info HarfBuzz built successfully)
+
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Clean
-# ─────────────────────────────────────────────────────────────────
-clean: clean_local clean_raylib clean_ffmpeg clean_freetype
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+clean: clean_local clean_raylib clean_ffmpeg clean_freetype clean_harfbuzz
 
 clean_local:
 	rm -f src/*.o src/win/*.o saturn_debug saturn_player saturn_debug.exe saturn_player.exe
@@ -221,3 +251,6 @@ clean_ffmpeg:
 
 clean_freetype:
 	@$(MAKE) -C $(FREETYPE_PATH) clean 2>/dev/null || true
+
+clean_harfbuzz:
+	rm -rf $(HARFBUZZ_BUILD)

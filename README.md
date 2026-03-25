@@ -1,7 +1,5 @@
 [![CI for Linux](https://github.com/ZachVFXX/SaturnPlayer/actions/workflows/linux_build.yml/badge.svg?branch=master)](https://github.com/ZachVFXX/SaturnPlayer/actions/workflows/linux_build.yml)
 
-// TODO: Add assert
-
 # Music Player in C 
 
 WORK IN PROGRESS, FEEL FREE TO CONTRIBUTE
@@ -61,14 +59,6 @@ Windows:
 
 ---
 
-Size (778 MP3s) Its only for me to monitor the optimization, its not updated
-
-* Debug:          380MB RAM - 73MB binary
-* Release:         92MB RAM - 73MB binary
-* Release + strip: 70MB RAM - 17MB binary
-
----
-
 ## TODO
 
 * Custom raylib `config.h` for smaller binaries CHECK.
@@ -77,7 +67,7 @@ Size (778 MP3s) Its only for me to monitor the optimization, its not updated
 * Reorganize the structure of the project.
 * Add settings (set audio format, colors etc..)
 * FIX FLAC AUDIO SUPPORT 
-
+* MPRIS support
 ---
 
 ## License
