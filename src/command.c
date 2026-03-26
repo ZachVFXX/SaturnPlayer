@@ -64,41 +64,52 @@ static void* search_thread(void* arg) {
     StringView sv = sv_from_cstr(s->query);
     char search_arg[512];
 
-    if (sv_starts_with(sv, sv_from_cstr("!")) && sv_contains(sv, sv_from_cstr("search:"))) {
-            StringView sv2 = {0};
-            size_t index = sv_find(sv, sv_from_cstr(":"));
-            sv2.data = sv.data + 1;
-            if (index > 1)
-                sv2.count = index - 1;
-            else
-                sv2.count = 0;
-            StringBuilder website = sb_from_sv(sv2);
+    sv = sv_trim(sv);
 
-            if (sv.count > 0 && index + 1 < (size_t)sv.count) {
-                sv2.data  = sv.data + index + 1;
-                sv2.count = sv.count - (index + 1);
-            } else {
-                sv2.count = 0;
-            }
+    // Detect pattern: <engine>search: <query>
+    size_t index = sv_find(sv, sv_from_cstr(":"));
 
-            StringView sv_query = sv_trim(sv2);
+    if (index != (size_t)-1) {
+        StringView engine = {
+            .data = sv.data,
+            .count = index
+        };
 
-            StringBuilder query = sb_from_sv(sv_query);
+        engine = sv_trim(engine);
 
-            const char* w = website.items ? website.items : "";
-            const char* q = query.items ? query.items : "";
+        // Check if engine ends with "search"
+        if (engine.count >= 6 &&
+            memcmp(engine.data + engine.count - 6, "search", 6) == 0) {
+
+            StringView query = {
+                .data = sv.data + index + 1,
+                .count = sv.count - (index + 1)
+            };
+
+            query = sv_trim(query);
 
             snprintf(search_arg, sizeof(search_arg),
                      "%.*s%d:%.*s",
-                     (int)website.count, w,
+                     (int)engine.count, engine.data,
                      s->max_results,
-                     (int)query.count, q);
-            sb_free(&website);
-            sb_free(&query);
-    } else if (sv_starts_with(sv, sv_from_cstr("https://"))) {
-        snprintf(search_arg, sizeof(search_arg), "%s", s->query);
-    } else {
-        snprintf(search_arg, sizeof(search_arg), "ytsearch%d:%s", s->max_results, s->query);
+                     (int)query.count, query.data);
+        } else {
+            // fallback to ytsearch
+            snprintf(search_arg, sizeof(search_arg),
+                     "ytsearch%d:%.*s",
+                     s->max_results,
+                     (int)sv.count, sv.data);
+        }
+    }
+    else if (sv_starts_with(sv, sv_from_cstr("https://"))) {
+        snprintf(search_arg, sizeof(search_arg), "%.*s",
+                 (int)sv.count, sv.data);
+    }
+    else {
+        snprintf(search_arg, sizeof(search_arg),
+                 "ytsearch%d:%.*s",
+                 s->max_results,
+                 (int)sv.count, sv.data);
     }
 
     TraceLog(LOG_INFO, "QUERY: %s", search_arg);
