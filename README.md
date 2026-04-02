@@ -61,7 +61,7 @@ Windows:
 
 ## TODO
 
-* Custom raylib `config.h` for smaller binaries CHECK.
+* Custom raylib `config.h` for smaller binaries ✅.
 * Arena linked list (remove `realloc`).
 * Custom install script (build custom raylib + custom FFmpeg + custom Freetype) and use it for automatic build.
 * Reorganize the structure of the project.
