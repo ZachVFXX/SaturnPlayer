@@ -80,7 +80,7 @@ LIBS = -L$(RAYLIB_PATH) -lraylib \
        $(FFMPEG_BUILD)/libavutil/libavutil.a     \
        $(FFMPEG_BUILD)/libswresample/libswresample.a \
        $(FREETYPE_PATH)/objs/.libs/libfreetype.a \
-       -L$(HARFBUZZ_PATH)/lib -lharfbuzz \
+       -L$(HARFBUZZ_PATH)/lib -l:libharfbuzz.a \
        $(PLATFORM_LIBS)
 
 CFLAGS = -std=c99 -Wall -Wextra -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
