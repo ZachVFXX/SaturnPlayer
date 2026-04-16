@@ -23,6 +23,8 @@ struct Core {
     mem_arena* string_arena;
 };
 
+static void core_check_song_ended(Core *c);
+
 static void core_play_current(Core *c)
 {
     Song *song = queue_current_playing(&c->queue);
@@ -131,11 +133,7 @@ static void core_handle_command(Core *c, CoreCommand *cmd)
         break;
     case CMD_QUEUE_REMOVE:
         if (queue_current_playing(&c->queue) == cmd->song) {
-            if (c->queue.count > 0) {
-                core_send_command(c, (CoreCommand) { .type = CMD_PLAY_NEXT });
-            } else {
-                core_send_command(c, (CoreCommand) { .type = CMD_STOP });
-            }
+            core_send_command(c, (CoreCommand) { .type = CMD_STOP });
         }
         queue_remove(&c->queue, cmd->song);
         break;
@@ -297,4 +295,28 @@ LoopMode core_get_loop_mode(Core *c)
     LoopMode mode = queue_get_loop_mode(&c->queue);
     pthread_mutex_unlock(&c->mutex);
     return mode;
+}
+
+double core_get_audio_position(Core *c)
+{
+    pthread_mutex_lock(&c->mutex);
+    double pos = c->audio->vtable->position(c->audio);
+    pthread_mutex_unlock(&c->mutex);
+    return pos;
+}
+
+double core_get_audio_length(Core *c)
+{
+    pthread_mutex_lock(&c->mutex);
+    double len = c->audio->vtable->get_length(c->audio);
+    pthread_mutex_unlock(&c->mutex);
+    return len;
+}
+
+bool core_is_audio_loaded(Core *c)
+{
+    pthread_mutex_lock(&c->mutex);
+    bool loaded = c->audio->vtable->is_loaded(c->audio);
+    pthread_mutex_unlock(&c->mutex);
+    return loaded;
 }

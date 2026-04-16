@@ -75,8 +75,7 @@ void queue_push(SongQueue *q, Song *song)
     }
 }
 
-void queue_remove(SongQueue *q, Song *song)
-{
+void queue_remove(SongQueue* q, Song* song) {
     if (q->count == 0) return;
     size_t index = 0;
     int found = 0;
@@ -105,11 +104,7 @@ void queue_remove(SongQueue *q, Song *song)
             q->current_selected--;
         }
 
-        if (q->current_playing >= q->count) {
-            q->current_playing = q->count - 1;
-        } else if (q->current_playing > index) {
-            q->current_playing--;
-        }
+        q->current_playing = 0;
     }
 
     if (q->shuffle_enabled) {

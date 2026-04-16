@@ -3,8 +3,9 @@
     #define NOUSER
 #endif
 
-#define ARENA_IMPLEMENTATION
 #include "utils/arena.h"
+
+#include "utils/vector.h"
 
 #include "core/core.h"
 #include "core/queue.h"
@@ -20,7 +21,7 @@
 #include "ctype.h"
 #include <assert.h>
 
-/* tr_core.h must come before raylib — it defines NOGDI/NOUSER on Windows */
+// tr_core.h must come before raylib bc it defines NOGDI/NOUSER on Windows
 #include "multi_font/tr_core.h"
 
 #define CLAY_IMPLEMENTATION
@@ -39,17 +40,10 @@ TR_RL_Fonts  clay_fonts  = {0};
 #include "win/taskbar_progress.c"
 #endif
 
-#define VECTOR_IMPLEMENTATION
-#include "utils/vector.h"
-
 #include "command.c"
-#include "metadata.c"
+#include "metadata/metadata.h"
 
-#include "core/core.c"
 #include "core/audio_raylib.c"
-
-#define DEFAULT_WIDTH 800
-#define DEFAULT_HEIGHT 600
 
 #include "assets/next.h"
 #include "assets/pause.h"
@@ -61,21 +55,10 @@ TR_RL_Fonts  clay_fonts  = {0};
 #include "assets/repeat_on_one.h"
 #include "assets/shuffle_on.h"
 
-#define COLOR_BACKGROUND        (Clay_Color){16, 14, 10, 255}
-#define COLOR_BACKGROUND_LIGHT  (Clay_Color){26, 23, 18, 255}
-#define COLOR_BACKGROUND_DARK   (Clay_Color){11, 10, 7, 255}
+#include "core/song.h"
 
-#define COLOR_TEXT_PRIMARY      (Clay_Color){238, 232, 226, 255}
-#define COLOR_TEXT_SECONDARY    (Clay_Color){176, 170, 164, 255}
-#define COLOR_TEXT_MUTED        (Clay_Color){130, 125, 120, 255}
+#include "config.h"
 
-#define COLOR_PRIMARY           (Clay_Color){235, 161, 5, 255}
-#define COLOR_SECONDARY         (Clay_Color){201, 140, 12, 255}
-#define COLOR_ACCENT            (Clay_Color){170, 120, 45, 255}
-
-#define COLOR_HOVER COLOR_BACKGROUND_DARK
-
-#define FONT_SIZE 16
 #define TEXT_CONFIG_24 CLAY_TEXT_CONFIG({ .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY })
 #define TEXT_CONFIG_24_BOLD CLAY_TEXT_CONFIG({ .fontId = 1, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY })
 
@@ -102,13 +85,9 @@ typedef struct {
     mem_arena* string_arena;
     mem_arena* scratch_arena;
     Vector* covers_textures;
+    Vector* pending_textures;
     int* next_song_id;
 } LoadSongsThreadData;
-
-typedef struct PendingTexture {
-    Image image;
-    int textureIndex;
-} PendingTexture;
 
 typedef struct {
     char** paths;
@@ -117,14 +96,15 @@ typedef struct {
 
 extern Vector pending_textures;
 extern Vector covers_textures;
-extern pthread_mutex_t arena_mutex;
+
+pthread_mutex_t arena_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 Vector pending_textures = {0};
 
-Texture2D texture2DFromImageBuffer(ImageBuffer* img);
+Texture2D texture2DFromImageBuffer(ImageMetadata* img);
 void renderSong(Song* song);
 void renderSearchResult(SearchResult* result, int index);
-Song* createSong(char* filepath);
+Song* createSong(char* filepath, Vector* pending_textures, mem_arena* song_arena, int* next_song_id, mem_arena* string_arena, Vector* covers_textures, pthread_mutex_t* arena_mutex);
 bool songMatchesSearch(Song* song, const char* query);
 Clay_String timeStringFromFloat(mem_arena* arena, float seconds);
 Texture2D createTextureFromMemory(unsigned char* data, int format, int width, int height);
@@ -173,7 +153,7 @@ static Clay_Vector2 pointer_press_pos;
 #define DRAG_THRESHOLD 6.0f
 
 // UI
-#define MAX_SEARCH_LENGTH 1024
+#define MAX_SEARCH_LENGTH 4096
 char searchQuery[MAX_SEARCH_LENGTH] = {0};
 bool searchBarActive = false;
 
@@ -191,7 +171,6 @@ pthread_t load_songs_thread = 0;
 bool loading_songs = false;
 pthread_mutex_t song_loading_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_mutex_t arena_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static Font fonts[2] = {0};
 
@@ -211,10 +190,9 @@ static int IsSupportedAudio(const char *ext)
 
 void add_song_from_path(FilePathList files) {
     double start_time = GetTime();
-    for (size_t i = 0; i < files.count; i++)
-    {
+    for (size_t i = 0; i < files.count; i++) {
         char* filepath = files.paths[i];
-        Song* song = createSong(filepath);
+        Song* song = createSong(filepath, &pending_textures, song_arena, &next_song_id, string_arena, &covers_textures, &arena_mutex);
         if (song){
             core_send_command(core, (CoreCommand){ .type = CMD_QUEUE_ADD, .song = song });
         } else {
@@ -255,7 +233,7 @@ void* load_songs_thread_func(void* arg) {
 
     for (size_t i = 0; i < data->files.count; i++) {
         char* filepath = data->files.paths[i];
-        Song* song = createSong(filepath);
+        Song* song = createSong(filepath, data->pending_textures, data->song_arena, data->next_song_id, data->string_arena, data->covers_textures, &arena_mutex);
         if (song) {
             core_send_command(data->core, (CoreCommand){ .type = CMD_QUEUE_ADD, .song = song });
         } else {
@@ -312,6 +290,7 @@ void start_loading_songs_async(FilePathList files, bool is_file_dropped) {
     data->string_arena = string_arena;
     data->scratch_arena = scratch_arena;
     data->covers_textures = &covers_textures;
+    data->pending_textures = &pending_textures;
     data->next_song_id = &next_song_id;
 
     if (pthread_create(&load_songs_thread, NULL, load_songs_thread_func, data) != 0) {
@@ -341,8 +320,8 @@ int main(int argc, char** argv) {
     Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, clay_memory_ptr);
     Clay_Initialize(clayMemory, (Clay_Dimensions) { (float)DEFAULT_WIDTH, (float)DEFAULT_HEIGHT }, (Clay_ErrorHandler) { HandleClayErrors, 0 });
 
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_ALWAYS_RUN);
     InitWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, "Saturn Player");
+    SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitAudioDevice();
 
     song_arena = arena_create(MiB(64), MiB(1));
@@ -380,7 +359,7 @@ int main(int argc, char** argv) {
     #endif
 
     // SetExitKey(KEY_NULL);
-    
+
     // Get the directory of the executable
     const char *exe_dir = GetApplicationDirectory();
 
@@ -389,9 +368,9 @@ int main(int argc, char** argv) {
     snprintf(font_regular,  sizeof(font_regular),  "%sassets/fonts/Poppins-Regular.ttf",  exe_dir);
     TraceLog(LOG_INFO, "Font load: SemiBold=%s Regular=%s", font_regular, font_semibold);
     tr_renderer = TR_CreateWithFont(FONT_SIZE, font_regular);
-    
+
     TR_AddFont(tr_renderer, font_semibold);
-    
+
     TraceLog(LOG_INFO, "Face 0: %s %s", tr_renderer->faces[0]->family_name, tr_renderer->faces[0]->style_name);
 
     TraceLog(LOG_INFO, "Face 1: %s %s", tr_renderer->faces[1]->family_name, tr_renderer->faces[1]->style_name);
@@ -402,18 +381,22 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < argc; i++) TraceLog(LOG_INFO, "Arg%d: %s", i, argv[i]);
 
-    if (argc > 1 || IsPathFile(argv[1])) {
+    if (argc > 1 && (IsPathFile(argv[1]) || DirectoryExists(argv[1]))) {
         working_path = argv[1];
         FilePathList music_files = LoadDirectoryFiles(working_path);
         start_loading_songs_async(music_files, false);
     } else {
-        working_path = ".";
+        working_path = (argc > 1) ? argv[1] : ".";
     }
 
     TraceLog(LOG_WARNING, "Current path: %s", working_path);
 
     while (!WindowShouldClose())
     {
+        if (IsKeyReleased(KEY_DELETE)) {
+            Song* song = core_get_current_song_selected(core);
+            core_send_command(core, (CoreCommand){.type = CMD_QUEUE_REMOVE, .song = song});
+        }
         current_cursor = MOUSE_CURSOR_DEFAULT;
         if (searchBarActive) {
             int key = GetCharPressed();
@@ -524,7 +507,8 @@ int main(int argc, char** argv) {
 
         if (downloader && download_done(downloader)) {
             TraceLog(LOG_INFO, "Successfuly downloaded %s to %s.", downloader->url, downloader->final_path);
-            Song* song = createSong(downloader->final_path);
+            Song* song = createSong(downloader->final_path, &pending_textures, song_arena, &next_song_id, string_arena, &covers_textures, &arena_mutex);
+
             core_send_command(core, (CoreCommand) { .type = CMD_QUEUE_ADD, .song = song});
             core_send_command(core, (CoreCommand) { .type = CMD_PLAY_SONG, .song = song});
             downloader = NULL;
@@ -532,6 +516,7 @@ int main(int argc, char** argv) {
 
         if (reinitializeClay) {
             pthread_mutex_lock(&song_loading_mutex);
+            pthread_mutex_lock(&arena_mutex);
             totalMemorySize = Clay_MinMemorySize() * 2;
 
             void* new_clay_memory_ptr = malloc(totalMemorySize);
@@ -542,6 +527,7 @@ int main(int argc, char** argv) {
             free(clay_memory_ptr);
             clay_memory_ptr = new_clay_memory_ptr;
             reinitializeClay = false;
+            pthread_mutex_unlock(&arena_mutex);
             pthread_mutex_unlock(&song_loading_mutex);
         }
 
@@ -662,7 +648,7 @@ int main(int argc, char** argv) {
             Song* song = core_get_current_song_playing(core);
             float length = song->length;
             if (length > 0.0f) {
-                float actual_pos = core->audio->vtable->position(audio) / length;
+                float actual_pos = core_get_audio_position(core) / length;
                 if (music_slider.has_target) {
                     if (fabsf(actual_pos - music_slider.target_value) < 0.01f) {
                         music_slider.has_target = false;
@@ -719,13 +705,15 @@ int main(int argc, char** argv) {
                 CLAY(CLAY_ID("QUEUE_CONTAINER"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }, .backgroundColor = COLOR_BACKGROUND}) {
                     size_t matchCount = 0;
 
-                    for (size_t i = 0; i < core_get_queue_count(core); i++) {
-                        Song *song = core_get_song_at(core, i);
-                        if (songMatchesSearch(song, searchQuery)) {
-                            renderSong(song);
-                            matchCount++;
-                        }
+                pthread_mutex_lock(&arena_mutex);
+                for (size_t i = 0; i < core_get_queue_count(core); i++) {
+                    Song *song = core_get_song_at(core, i);
+                    if (songMatchesSearch(song, searchQuery)) {
+                        renderSong(song);
+                        matchCount++;
                     }
+                }
+                pthread_mutex_unlock(&arena_mutex);
 
                     if (matchCount == 0 && strlen(searchQuery) > 0) {
                         CLAY(CLAY_ID("NO_RESULTS"), {
@@ -830,14 +818,15 @@ int main(int argc, char** argv) {
                 }
             }
 
-            if (core->audio->vtable->is_loaded(audio)) {
+            if (core_is_audio_loaded(core)) {
+                pthread_mutex_lock(&arena_mutex);
                 Song* song = core_get_current_song_playing(core);
                 const char* song_title = arena_get_string(string_arena, song->title);
                 const char* song_artists = arena_get_string(string_arena, song->artists);
 
                 #ifdef _WIN32
-                taskbar_progress_set_value(core->audio->vtable->position(core->audio) / core->audio->vtable->get_length(core->audio));
-                if (!core->audio->vtable->is_playing(core->audio)) {
+                taskbar_progress_set_value(core_get_audio_position(core) / core_get_audio_length(core));
+                if (core_get_state(core) != CORE_PLAYING) {
                     taskbar_progress_set_state(TASKBAR_PROGRESS_PAUSED);
                 }
                 #endif
@@ -854,7 +843,7 @@ int main(int argc, char** argv) {
                     }
                     CLAY(CLAY_ID("SLIDER_FRAME"), { .layout = { .padding = { .left = 8, .right = 8 } , .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER}, .childGap = 8, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}}, .backgroundColor = COLOR_BACKGROUND_LIGHT}) {
 
-                        Clay_String time_played = timeStringFromFloat(ui_arena, core->audio->vtable->position(core->audio));
+                        Clay_String time_played = timeStringFromFloat(ui_arena, core_get_audio_position(core));
                         CLAY_TEXT(time_played, CLAY_TEXT_CONFIG({ .textAlignment = CLAY_TEXT_ALIGN_CENTER, .fontSize = FONT_SIZE, .textColor = COLOR_TEXT_SECONDARY }));
 
                         CLAY(CLAY_ID("SLIDER"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(20)}, .padding = CLAY_PADDING_ALL(2) }, .backgroundColor = COLOR_BACKGROUND}) {
@@ -897,6 +886,7 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
+                pthread_mutex_unlock(&arena_mutex);
             }
         }
 
@@ -993,83 +983,7 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-Song* createSong(char* filepath)
-{
-    if (!FileExists(filepath))
-        return NULL;
-
-    mem_arena* local_scratch = arena_create(MiB(8), MiB(1));
-    Metadata* metadata = get_metadata_from_mp3(local_scratch, filepath);
-
-    pthread_mutex_lock(&arena_mutex);
-    Music music = LoadMusicStream(filepath);
-    float song_length = GetMusicTimeLength(music);
-    UnloadMusicStream(music);
-
-    Song* song = PUSH_STRUCT(song_arena, Song);
-    memset(song, 0, sizeof(Song));
-
-    song->id = next_song_id++;
-
-    song->title = arena_push_string_id(
-        string_arena,
-        metadata->title_text ? metadata->title_text : GetFileNameWithoutExt(filepath)
-    );
-
-    song->artists = arena_push_string_id(
-        string_arena,
-        metadata->artist_text ? metadata->artist_text : "Unknown Artist"
-    );
-
-    song->album = arena_push_string_id(
-        string_arena,
-        metadata->album_text ? metadata->album_text : "Unknown Album"
-    );
-
-    song->path   = arena_push_string_id(string_arena, filepath);
-    song->length = song_length;
-
-    song->textureIndex = covers_textures.count;
-    Texture2D placeholder = {0};
-    vectorAppend(&covers_textures, &placeholder);
-
-    pthread_mutex_unlock(&arena_mutex);
-
-    if (metadata->image && metadata->image->data && metadata->image->size > 0) {
-        const char* ext = get_file_extension_from_mime(metadata->image->mime_type);
-
-        Image img = LoadImageFromMemory(ext, metadata->image->data, (int)metadata->image->size);
-
-        if (img.data) {
-            Rectangle rect;
-            if (img.width > img.height) {
-                float offset = (img.width - img.height) * 0.5f;
-                rect = (Rectangle){ offset, 0, img.height, img.height };
-            }
-            else if (img.height > img.width) {
-                float offset = (img.height - img.width) * 0.5f;
-                rect = (Rectangle){ 0, offset, img.width, img.width };
-            } else {
-                rect = (Rectangle){ 0, 0, img.width, img.height };
-            }
-
-            ImageCrop(&img, rect);
-
-            PendingTexture pending = {0};
-            pending.image = img;
-            pending.textureIndex = song->textureIndex;
-
-            pthread_mutex_lock(&arena_mutex);
-            vectorAppend(&pending_textures, &pending);
-            pthread_mutex_unlock(&arena_mutex);
-        }
-    }
-
-    arena_destroy(local_scratch);
-    return song;
-}
-
-Texture2D texture2DFromImageBuffer(ImageBuffer* img)
+Texture2D texture2DFromImageBuffer(ImageMetadata* img)
 {
     if (!img || !img->data || img->size == 0)
         return (Texture2D){0};
@@ -1215,7 +1129,7 @@ void HandleSliderInteraction(Clay_ElementId elementId, Clay_PointerData pointerI
 
     current_cursor = MOUSE_CURSOR_POINTING_HAND;
 
-    if (!core->audio->vtable->is_loaded(core->audio))
+    if (!core_is_audio_loaded(core))
         return;
 
     float length = core_get_current_song_playing(core)->length;
@@ -1291,9 +1205,6 @@ void HandleSongInteraction(Clay_ElementId elementId, Clay_PointerData pointerInf
         if (IsKeyDown(KEY_LEFT_SHIFT)) {
             core_send_command(core, (CoreCommand){.type = CMD_QUEUE_ADD, .song = song});
             return;
-        } else if (IsKeyDown(KEY_LEFT_CONTROL)) {
-            core_send_command(core, (CoreCommand){.type = CMD_QUEUE_REMOVE, .song = song});
-            return;
         } else if (curr_selected->id == song->id) {
             core_send_command(core, (CoreCommand){ .type = CMD_PLAY_SELECTED });
         } else {
@@ -1310,7 +1221,7 @@ void HandleShuffleInteraction(Clay_ElementId elementId, Clay_PointerData pointer
 
     if (pointerInfo.state == CLAY_POINTER_DATA_RELEASED_THIS_FRAME  && !pointer_dragging ) {
         searchBarActive = false;
-        core_send_command(core, (CoreCommand){ .type = CMD_TOGGLE_SHUFFLE, .shuffle_enabled = !queue_is_shuffle_enabled(&core->queue)});
+        core_send_command(core, (CoreCommand){ .type = CMD_TOGGLE_SHUFFLE, .shuffle_enabled = !core_is_shuffle_enabled(core)});
     }
 }
 

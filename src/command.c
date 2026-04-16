@@ -50,8 +50,8 @@ typedef struct {
 typedef struct {
     pthread_t thread;
     mem_arena* arena;
-    char url[2048];
-    char out_dir[2048];
+    char url[4096];
+    char out_dir[4096];
 
     char* final_path;
     bool done;

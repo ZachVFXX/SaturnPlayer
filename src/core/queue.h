@@ -1,5 +1,6 @@
-// core/queue.h
-#pragma once
+#ifndef QUEUE_H
+#define QUEUE_H
+
 #include <stddef.h>
 #include "song.h"
 #include "stdbool.h"
@@ -45,3 +46,5 @@ void queue_set_shuffle(SongQueue* q, bool enabled);
 void queue_set_loop_mode(SongQueue* q, LoopMode mode);
 bool queue_is_shuffle_enabled(SongQueue* q);
 LoopMode queue_get_loop_mode(SongQueue* q);
+
+#endif

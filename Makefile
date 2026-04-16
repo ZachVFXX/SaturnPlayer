@@ -85,7 +85,8 @@ LIBS = -L$(RAYLIB_PATH) -lraylib \
 
 CFLAGS = -std=c99 -Wall -Wextra -D_POSIX_C_SOURCE=200809L -DPLATFORM_DESKTOP
 
-OBJS = src/main.o src/win/titlebar.o
+SRCS = src/core/song.c src/utils/vector.c src/main.c src/win/titlebar.c src/metadata/metadata.c src/utils/arena.c src/core/core.c
+OBJS = $(SRCS:.c=.o)
 
 # Top-level targets
 debug_build:   build_ffmpeg build_freetype build_harfbuzz build_raylib saturn_debug$(BIN_SUFFIX)
@@ -219,7 +220,7 @@ build_harfbuzz: build_freetype
 clean: clean_local clean_raylib clean_ffmpeg clean_freetype clean_harfbuzz
 
 clean_local:
-	rm -f src/*.o src/win/*.o saturn_debug saturn_player saturn_debug.exe saturn_player.exe
+	rm -f src/*.o src/win/*.o src/core/*.o src/utils/*.o src/metadata/*.o saturn_debug saturn_player saturn_debug.exe saturn_player.exe
 
 clean_raylib:
 	@$(MAKE) -C $(RAYLIB_PATH) clean || true

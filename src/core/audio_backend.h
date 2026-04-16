@@ -1,4 +1,6 @@
-#pragma once
+#ifndef AUDIO_BACKEND_H
+#define AUDIO_BACKEND_H
+
 #include <stdbool.h>
 
 typedef struct AudioBackend AudioBackend;
@@ -22,3 +24,5 @@ struct AudioBackend {
     AudioBackendVTable *vtable;
     void *impl;
 };
+
+#endif

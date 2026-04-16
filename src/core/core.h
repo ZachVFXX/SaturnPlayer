@@ -1,4 +1,6 @@
-#pragma once
+#ifndef CORE_H
+#define CORE_H
+
 #include <stdbool.h>
 #include "song.h"
 #include "queue.h"
@@ -61,5 +63,10 @@ size_t core_get_queue_count(Core *core);
 Song *core_get_queue_item(Core *core, size_t index);
 bool core_is_shuffle_enabled(Core *core);
 LoopMode core_get_loop_mode(Core *core);
-static void core_check_song_ended(Core* core);
 Song* core_get_song_at(Core *core, size_t index);
+
+double core_get_audio_position(Core *core);
+double core_get_audio_length(Core *core);
+bool   core_is_audio_loaded(Core *core);
+
+#endif
