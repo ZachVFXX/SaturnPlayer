@@ -193,15 +193,16 @@ build_freetype: fetch_freetype
 	$(MAKE) -j$(JOBS) CC=$(CC)
 	$(info FreeType built successfully)
 
-# HarfBuzz
+
 build_harfbuzz: build_freetype
 	$(info Building harfbuzz)
 	mkdir -p $(CURDIR)/$(FREETYPE_BUILD)/pkgconfig
-	printf 'prefix=%s\nexec_prefix=$${prefix}\nlibdir=%s\nincludedir=%s\n\nName: FreeType 2\nDescription: A free, high-quality font engine\nVersion: $(FREETYPE_VERSION)\nCflags: -I$${includedir}\nLibs: $${libdir}/libfreetype.a\n' \
+	printf 'prefix=%s\nexec_prefix=$${prefix}\nlibdir=%s\nincludedir=%s\n\nName: FreeType 2\nDescription: A free, high-quality font engine\nVersion: 26.4.20\nCflags: -I$${includedir}\nLibs: $${libdir}/libfreetype.a\n' \
 		"$(CURDIR)/$(FREETYPE_PATH)" \
 		"$(CURDIR)/$(FREETYPE_PATH)/objs/.libs" \
 		"$(CURDIR)/$(FREETYPE_PATH)/include" \
 		> $(CURDIR)/$(FREETYPE_BUILD)/pkgconfig/freetype2.pc
+
 	CC=$(CC) PKG_CONFIG_PATH=$(CURDIR)/$(FREETYPE_BUILD)/pkgconfig \
 	meson setup --reconfigure \
 		--default-library=static \
@@ -212,6 +213,7 @@ build_harfbuzz: build_freetype
 		-Dintrospection=disabled \
 		-Dfreetype=enabled \
 		$(HARFBUZZ_BUILD) $(HARFBUZZ_PATH)
+
 	meson compile -C $(HARFBUZZ_BUILD) -j$(JOBS)
 	meson install -C $(HARFBUZZ_BUILD)
 	$(info HarfBuzz built successfully)
